@@ -1,0 +1,78 @@
+<Window x:Class="SqlBackup.Desktop.OperationDetailsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="/SqlBackup.Desktop;component/Assets/sqlbackup.ico"
+        Title="Job log" Width="1030" Height="680" MinWidth="800" MinHeight="510"
+        WindowStartupLocation="CenterOwner" Background="#F3F6FA" FontFamily="Segoe UI" FontSize="12">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" /><RowDefinition Height="190" /><RowDefinition Height="34" />
+            <RowDefinition Height="*" /><RowDefinition Height="34" />
+        </Grid.RowDefinitions>
+        <Border Background="#E8EDF3" BorderBrush="#D5DDE5" BorderThickness="0,0,0,1" Padding="14,7">
+            <DockPanel>
+                <Button Content="Close" DockPanel.Dock="Right" Padding="14,5" IsCancel="True" Margin="7,0,0,0" />
+                <Button x:Name="ExportButton" Content="Export log" DockPanel.Dock="Right" Padding="14,5" Click="Export_Click" Margin="7,0,0,0"
+                        ToolTip="Export includes database names and file paths. Keep the file private." IsEnabled="False" />
+                <Button x:Name="RefreshButton" Content="Refresh" DockPanel.Dock="Right" Padding="14,5" Click="Refresh_Click" Margin="7,0,0,0" />
+                <TextBlock x:Name="JobLogTitle" Text="Job log" FontSize="17" FontWeight="SemiBold" Foreground="#263F53" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
+        <Grid x:Name="RunOverview" Grid.Row="1" Margin="14,12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="0.95*" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,16,0">
+                <TextBlock Text="General information" FontSize="14" FontWeight="SemiBold" Foreground="#314F63" Margin="0,0,0,8" />
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="82" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                    <TextBlock Text="Job status:" Foreground="#647D93" Margin="0,0,0,5" />
+                    <TextBlock x:Name="JobStatus" Grid.Column="1" FontWeight="SemiBold" />
+                    <TextBlock Text="Start time:" Grid.Row="1" Foreground="#647D93" Margin="0,0,0,5" />
+                    <TextBlock x:Name="StartTime" Grid.Row="1" Grid.Column="1" />
+                    <TextBlock Text="Duration:" Grid.Row="2" Foreground="#647D93" Margin="0,0,0,5" />
+                    <TextBlock x:Name="Duration" Grid.Row="2" Grid.Column="1" />
+                    <TextBlock Text="Payload size:" Grid.Row="3" Foreground="#647D93" Margin="0,0,0,5" />
+                    <TextBlock x:Name="PayloadSize" Grid.Row="3" Grid.Column="1" />
+                    <TextBlock Text="Server:" Grid.Row="4" Foreground="#647D93" />
+                    <TextBlock x:Name="ServerName" Grid.Row="4" Grid.Column="1" TextTrimming="CharacterEllipsis" />
+                </Grid>
+                <TextBlock Text="VERIFYONLY and integrity checks do not prove a successful restore." Foreground="#7B8C9B" FontSize="10" TextWrapping="Wrap" Margin="0,12,0,0" />
+            </StackPanel>
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <TextBlock x:Name="ObjectCount" Text="Backup objects" FontSize="14" FontWeight="SemiBold" Foreground="#314F63" Margin="0,0,0,8" />
+                <ListBox x:Name="BackupObjects" Grid.Row="1" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate><DataTemplate>
+                        <StackPanel Margin="0,3" ToolTip="{Binding Path}">
+                            <TextBlock Foreground="#314F63"><Run Text="{Binding Database}" FontWeight="SemiBold" /><Run Text=" · " /><Run Text="{Binding Type}" /><Run Text=" · " /><Run Text="{Binding Size}" /></TextBlock>
+                            <TextBlock Text="{Binding Status}" FontSize="10" Foreground="#71869A" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+        <Border Grid.Row="2" Background="#E8EDF3" Padding="14,5">
+            <DockPanel>
+                <ComboBox x:Name="LogFilter" DockPanel.Dock="Right" Width="145" SelectionChanged="Filter_Changed" SelectedIndex="0">
+                    <ComboBoxItem Content="All records" /><ComboBoxItem Content="Problems only" /><ComboBoxItem Content="Completed stages" />
+                </ComboBox>
+                <TextBlock x:Name="RunState" Text="Loading execution evidence…" FontWeight="SemiBold" Foreground="#314F63" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+        <ListBox x:Name="LogRecords" Grid.Row="3" BorderBrush="#D5DDE5" Margin="10,0,10,6" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" HorizontalContentAlignment="Stretch">
+            <ListBox.ItemTemplate><DataTemplate>
+                <Grid Margin="3,4">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="20" /><ColumnDefinition Width="66" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Symbol}" Foreground="{Binding Color}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="1" Text="{Binding TimeLabel}" Foreground="#7A8C9A" Margin="0,3,0,0" FontSize="11" />
+                    <TextBlock Grid.Column="2" TextWrapping="Wrap" Foreground="#314F63" Margin="0,2,0,0">
+                        <Run Text="{Binding Database}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Message}" />
+                    </TextBlock>
+                </Grid>
+            </DataTemplate></ListBox.ItemTemplate>
+        </ListBox>
+        <TextBox x:Name="Details" Grid.Row="1" Grid.RowSpan="3" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="14" Visibility="Collapsed" />
+        <TextBlock x:Name="EvidenceNote" Grid.Row="4" Foreground="#71869A" FontSize="10" Margin="14,4" TextWrapping="Wrap" />
+    </Grid>
+</Window>

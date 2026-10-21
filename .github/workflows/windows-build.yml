@@ -1,0 +1,114 @@
+name: Windows build and installer
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Restore and build
+        shell: pwsh
+        run: |
+          dotnet restore SqlBackup.slnx
+          if ($LASTEXITCODE -ne 0)
+          {
+              exit $LASTEXITCODE
+          }
+          dotnet build SqlBackup.slnx --configuration Release --no-restore
+          exit $LASTEXITCODE
+      - name: Regression and authenticated IPC checks
+        run: dotnet run --project tests/SqlBackup.Tests --configuration Release --no-build -- --require-ipc
+      - name: Desktop checks
+        run: dotnet run --project tests/SqlBackup.Tests --configuration Release --no-build -- --render-desktop .artifacts/installer-desktop.png
+      - name: Select package version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "0.1.0-ci.$env:GITHUB_RUN_NUMBER"
+          if ($env:GITHUB_REF_TYPE -eq 'tag')
+          {
+              $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')
+          {
+              throw 'Tags must use vMAJOR.MINOR.PATCH with an optional prerelease suffix.'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Install pinned Inno Setup compiler
+        shell: pwsh
+        run: ./scripts/Install-InnoSetup.ps1
+      - name: Build installer and upgrade fixture
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          ./scripts/Build-Package.ps1 -Version $env:PACKAGE_VERSION
+          $numeric = [version]($env:PACKAGE_VERSION.Split('-')[0])
+          $upgrade = "$($numeric.Major).$($numeric.Minor).$($numeric.Build + 1)-smoke.$env:GITHUB_RUN_NUMBER"
+          ./scripts/Build-Package.ps1 -Version $upgrade
+          "SMOKE_UPGRADE_VERSION=$upgrade" >> $env:GITHUB_ENV
+      - name: Installation, restart, rollback, upgrade and removal checks
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          ./scripts/Test-Installer.ps1 `
+              -InstallerPath ".artifacts/installer/SqlBackup-Setup-$env:PACKAGE_VERSION-win-x64.exe" `
+              -UpgradeInstallerPath ".artifacts/installer/SqlBackup-Setup-$env:SMOKE_UPGRADE_VERSION-win-x64.exe"
+      - name: Upload requested installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            .artifacts/installer/SqlBackup-Setup-${{ steps.version.outputs.version }}-win-x64.exe
+            .artifacts/installer/SqlBackup-Setup-${{ steps.version.outputs.version }}-win-x64.exe.sha256
+          if-no-files-found: error
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-validation
+          path: |
+            .artifacts/*.png
+            .artifacts/installer-logs/*.log
+          if-no-files-found: warn
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: windows-installer
+          path: installer
+      - name: Create draft preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          gh release create "$RELEASE_TAG" installer/* \
+            --verify-tag --draft --prerelease --generate-notes \
+            --title "SqlBackup $RELEASE_TAG — preview"
+

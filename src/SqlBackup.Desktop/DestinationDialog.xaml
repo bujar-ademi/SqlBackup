@@ -1,0 +1,78 @@
+<Window x:Class="SqlBackup.Desktop.DestinationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="/SqlBackup.Desktop;component/Assets/sqlbackup.ico"
+        Title="Local / Network Folder / NAS Settings" Width="620" Height="700" MinWidth="540" MinHeight="490"
+        WindowStartupLocation="CenterOwner" Background="#F3F6FA" FontFamily="Segoe UI" FontSize="12"
+        Closing="Window_Closing">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="74" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Background="White" Padding="20,14">
+            <StackPanel>
+                <TextBlock Text="Local / Network Folder / NAS" FontSize="20" FontWeight="SemiBold" Foreground="#243E56" />
+                <TextBlock Text="Temporary SQL backup folder and final storage for this job" Foreground="#74899D" Margin="0,5,0,0" />
+            </StackPanel>
+        </Border>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="Editor" Margin="20,16">
+                <TextBlock Text="Temporary folder (on the SQL Server)" FontWeight="SemiBold" Foreground="#36526B" />
+                <TextBox x:Name="TemporaryFolder" Padding="7,5" MaxLength="512" Margin="0,8,0,6" TextChanged="TemporaryFolder_TextChanged" />
+                <TextBlock Text="Default: %ProgramData%\SqlBackup\Temp on this service host. For remote SQL choose a folder on that SQL server. SQL visibility is checked before Save &amp; Close; its service account needs backup read/write access." TextWrapping="Wrap" Foreground="#647D93" />
+                <TextBlock x:Name="TemporaryFolderStatus" TextWrapping="Wrap" Foreground="#A14B17" Margin="0,6,0,0" />
+                <TextBlock Text="Final backup folder — Local / Network / NAS" FontWeight="SemiBold" Foreground="#36526B" Margin="0,16,0,0" />
+                <DockPanel Margin="0,8,0,10">
+                    <Button Content="…" DockPanel.Dock="Right" Padding="12,5" Margin="8,0,0,0" Click="Browse_Click" ToolTip="Browse folders on this computer" />
+                    <TextBox x:Name="FolderPath" Padding="7,5" MaxLength="512" />
+                </DockPanel>
+                <TextBlock Text="For a network folder or NAS, use a UNC path such as \\server\share\backups." TextWrapping="Wrap" Foreground="#74899D" FontSize="12" />
+                <Expander Header="Folder access" IsExpanded="False" Margin="0,18,0,0" Foreground="#365C7C">
+                    <StackPanel Margin="18,12,0,0">
+                        <TextBlock Text="SQL Server writes only to the temporary folder using its SQL service account. AbaSqlBackup reads that backup and writes to the final destinations." TextWrapping="Wrap" Foreground="#647D93" />
+                        <TextBlock Text="For remote SQL, set the service-visible source below to an authorized UNC share exposing the same temporary files. Browse selects final folders on this computer." TextWrapping="Wrap" Foreground="#647D93" Margin="0,10,0,0" />
+                    </StackPanel>
+                </Expander>
+                <TextBlock Text="Retention: primary recovery window (days, 0 = keep all)" FontWeight="SemiBold" Margin="0,20,0,6" />
+                <TextBox x:Name="PrimaryDays" Text="0" Padding="9,6" />
+                <TextBlock Text="Service-visible temporary folder (optional mapping for remote SQL)" TextWrapping="Wrap" Margin="0,14,0,6" />
+                <TextBox x:Name="ServiceSource" Padding="9,6" MaxLength="512" />
+                <TextBlock Text="Secondary copy: Local / Network / NAS folder (optional)" FontWeight="SemiBold" Margin="0,14,0,6" />
+                <TextBox x:Name="SecondaryFolder" Padding="9,6" MaxLength="512" />
+                <TextBlock Text="Retention: secondary recovery window (days, 0 = keep all)" Margin="0,14,0,6" />
+                <TextBox x:Name="SecondaryDays" Text="0" Padding="9,6" />
+                <Expander Header="Network credentials (optional)" Margin="0,16,0,0" Foreground="#365C7C">
+                    <StackPanel Margin="12,10,0,0">
+                        <TextBlock Text="Leave the user name empty to use the AbaSqlBackup service account. For UNC shares use user, NAS\user, DOMAIN\user or a UPN. Blank passwords keep an existing password only for the same folder/user. Changing the folder or user requires entering the password again." TextWrapping="Wrap" Foreground="#647D93" />
+                        <TextBlock Text="Final folder user name" Margin="0,10,0,4" />
+                        <TextBox x:Name="DestinationUser" Padding="7,5" MaxLength="256" />
+                        <TextBlock Text="Final folder password" Margin="0,8,0,4" />
+                        <PasswordBox x:Name="DestinationPassword" Padding="7,5" MaxLength="1024" />
+                        <TextBlock Text="Secondary folder user name" Margin="0,10,0,4" />
+                        <TextBox x:Name="SecondaryUser" Padding="7,5" MaxLength="256" />
+                        <TextBlock Text="Secondary folder password" Margin="0,8,0,4" />
+                        <PasswordBox x:Name="SecondaryPassword" Padding="7,5" MaxLength="1024" />
+                        <TextBlock Text="Remote temporary share user name" Margin="0,10,0,4" />
+                        <TextBox x:Name="SourceUser" Padding="7,5" MaxLength="256" />
+                        <TextBlock Text="Remote temporary share password" Margin="0,8,0,4" />
+                        <PasswordBox x:Name="SourcePassword" Padding="7,5" MaxLength="1024" />
+                    </StackPanel>
+                </Expander>
+                <TextBlock Text="Completed copies are checked with SHA-256. Temporary backups are removed only after all final copies succeed and are recorded; failed transfers retain the temporary backup." TextWrapping="Wrap" Foreground="#647D93" Margin="0,12,0,0" />
+                <Border Background="#EAF0F7" CornerRadius="6" Padding="12" Margin="0,20,0,0">
+                    <TextBlock Text="Retention protects dependencies and may keep older files. Use Preview cleanup in the job workspace to review and explicitly delete eligible artifacts. Cleanup is never automatic." TextWrapping="Wrap" Foreground="#607A91" FontSize="12" />
+                </Border>
+                <TextBlock x:Name="Status" TextWrapping="Wrap" Foreground="#58738A" Margin="0,16,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+        <Border Grid.Row="2" Background="White" Padding="20,15" BorderBrush="#DDE6EF" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <Button x:Name="CancelButton" Content="Cancel" DockPanel.Dock="Right" Padding="13,6" Margin="8,0,0,0" IsCancel="True" />
+                <Button x:Name="AcceptButton" Content="Save &amp; Close" DockPanel.Dock="Right" Padding="13,6" Click="Save_Click" IsDefault="True" />
+                <Button x:Name="TestButton" Content="Test" Padding="13,6" HorizontalAlignment="Left" Click="Test_Click" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

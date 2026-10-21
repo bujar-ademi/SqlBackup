@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SqlBackup.Core/SqlBackup.Core.csproj" />
+    <Project Path="src/SqlBackup.Desktop/SqlBackup.Desktop.csproj" />
+    <Project Path="src/SqlBackup.Infrastructure/SqlBackup.Infrastructure.csproj" />
+    <Project Path="src/SqlBackup.Service/SqlBackup.Service.csproj" />
+    <Project Path="src/SqlBackup.Setup/SqlBackup.Setup.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SqlBackup.Tests/SqlBackup.Tests.csproj" />
+  </Folder>
+</Solution>

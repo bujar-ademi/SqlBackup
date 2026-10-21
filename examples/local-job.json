@@ -1,0 +1,23 @@
+{
+  "Id": "11111111-1111-4111-8111-111111111111",
+  "Name": "Example local backup",
+  "Databases": ["ExampleDatabase"],
+  "Destination": "C:\\ExampleBackups",
+  "TemporaryFolder": "C:\\ProgramData\\SqlBackup\\Temp",
+  "Enabled": false,
+  "Checksum": true,
+  "Verify": true,
+  "CopyOnly": true,
+  "Connection": {
+    "Name": "Example SQL",
+    "Server": "localhost",
+    "UseWindowsAuthentication": true,
+    "UserName": null,
+    "HasPassword": false,
+    "TrustServerCertificate": false
+  },
+  "Storage": {
+    "PrimaryRetentionDays": 30,
+    "SecondaryRetentionDays": 0
+  }
+}

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SqlBackup.Core\SqlBackup.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\sqlbackup.ico" />
+    <Resource Include="Assets\sqlbackup.png" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\sqlbackup.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>SqlBackup</Product>
+    <Authors>Bujar Ademi</Authors>
+    <Description>SQL Server backup manager by Bujar Ademi.</Description>
+  </PropertyGroup>
+
+</Project>
+

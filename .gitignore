@@ -3,6 +3,15 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# SqlBackup local configuration and SQL backup artifacts
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.bak
+*.trn
+
 # User-specific files
 *.rsuser
 *.suo
@@ -426,3 +435,11 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Local planning, validation records and development instructions
+.local/
+/AGENTS.md
+/docs/decisions.md
+/docs/implementation-plan.md
+/docs/*validation.md
+/docs/desktop-performance-and-compact-ui.md

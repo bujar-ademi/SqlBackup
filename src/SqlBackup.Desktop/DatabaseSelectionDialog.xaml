@@ -1,0 +1,55 @@
+<Window x:Class="SqlBackup.Desktop.DatabaseSelectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="/SqlBackup.Desktop;component/Assets/sqlbackup.ico"
+        Title="Select Databases" Width="510" Height="550" MinWidth="460" MinHeight="480"
+        WindowStartupLocation="CenterOwner" Background="#F3F6FA" FontFamily="Segoe UI" FontSize="12">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="74" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Background="White" Padding="20,14">
+            <StackPanel>
+                <TextBlock Text="Select Databases" FontSize="20" FontWeight="SemiBold" Foreground="#243E56" />
+                <TextBlock x:Name="ServerLabel" Foreground="#74899D" Margin="0,5,0,0" />
+            </StackPanel>
+        </Border>
+        <Grid Grid.Row="1" Margin="20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <DockPanel>
+                <Button x:Name="RefreshButton" Content="Refresh" DockPanel.Dock="Right" Padding="10,5" Click="Refresh_Click" Margin="8,0,0,0" />
+                <Button Content="Select all available user databases" HorizontalAlignment="Left" Padding="9,5" Click="SelectAll_Click" IsEnabled="{Binding IsEnabled, ElementName=SelectionControls}" />
+            </DockPanel>
+            <CheckBox x:Name="ShowSystem" IsEnabled="{Binding IsEnabled, ElementName=SelectionControls}" Grid.Row="1" Content="Show system databases" Margin="0,12" Checked="Filter_Changed" Unchecked="Filter_Changed" />
+            <Grid x:Name="SelectionControls" Grid.Row="2">
+            <ListBox x:Name="DatabaseList" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" BorderBrush="#D7E1EC" HorizontalContentAlignment="Stretch">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel Margin="5,3" ToolTip="{Binding Database.Availability}">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Database.State}" FontSize="11" Foreground="#8294A5" Margin="12,2,0,0" />
+                            <CheckBox IsChecked="{Binding IsSelected}" Content="{Binding Database.Name}" IsEnabled="{Binding CanSelect}" />
+                        </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            </Grid>
+            <StackPanel Grid.Row="3">
+                <ProgressBar x:Name="Loading" IsIndeterminate="True" Height="4" Margin="0,12,0,0" Visibility="Collapsed" />
+            <TextBlock x:Name="Status" Text="Selections are explicit; newly created databases are not added automatically." TextWrapping="Wrap" Foreground="#71869A" FontSize="11" Margin="0,14,0,0" />
+            </StackPanel>
+        </Grid>
+        <Border Grid.Row="2" Background="White" Padding="20,15" BorderBrush="#DDE6EF" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="AcceptButton" Content="Save &amp; Close" Padding="13,6" Margin="0,0,8,0" Click="Save_Click" IsDefault="True" />
+                <Button Content="Cancel" Padding="13,6" IsCancel="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

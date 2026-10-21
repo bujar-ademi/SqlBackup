@@ -1,0 +1,15 @@
+SqlBackup by Bujar Ademi
+https://bujarademi.com
+
+Preview build. Windows 11 x64 / Windows Server 2022 or newer with Desktop Experience.
+
+This installer includes the .NET runtime and installs the desktop application and the AbaSqlBackup Windows Service. Administrator access is required. The service runs as LocalSystem and starts automatically with Windows.
+
+Close SqlBackup and wait for queued/running backups to finish before installing, updating or uninstalling. Updating preserves configuration and creates a protected recovery snapshot. Existing enabled schedules resume after successful setup.
+
+Existing development-console data must not be silently adopted: its encrypted credentials may belong to another Windows identity. Read the installation and recovery guide at https://github.com/bujar-ademi/SqlBackup/tree/main/docs before moving such data to the service.
+
+Uninstall removes the application/service, while retaining configuration, credentials, history, recovery snapshots and backup files. No SQL or NAS backup folder is deleted by setup.
+
+This preview build is unsigned. SqlBackup source is MIT licensed; bundled components retain their own terms, included with the application. A completed installation is not proof that your SQL/NAS permissions or restore strategy have been validated.
+

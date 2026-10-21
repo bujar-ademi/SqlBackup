@@ -1,0 +1,96 @@
+<Window x:Class="SqlBackup.Desktop.ScheduleDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="/SqlBackup.Desktop;component/Assets/sqlbackup.ico"
+        Title="Advanced Backup Schedule" Width="850" Height="680" MinWidth="800" MinHeight="650"
+        WindowStartupLocation="CenterOwner" Background="#F3F6FA" FontFamily="Segoe UI" FontSize="12">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="74" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Background="White" Padding="20,14">
+            <StackPanel>
+                <TextBlock Text="Advanced Backup Schedule" FontSize="20" FontWeight="SemiBold" Foreground="#243E56" />
+                <TextBlock Text="Full, Differential and Transaction Log · one schedule per job" Foreground="#74899D" Margin="0,6,0,0" />
+            </StackPanel>
+        </Border>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,16">
+                <CheckBox x:Name="ScheduleEnabled" Content="Enable automatic backups for this job" Margin="0,0,0,16" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="320" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,22,0">
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="65" />
+                                <ColumnDefinition Width="30" />
+                                <ColumnDefinition Width="55" />
+                                <ColumnDefinition Width="30" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="36" />
+                                <RowDefinition Height="36" />
+                                <RowDefinition Height="36" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Full, every" VerticalAlignment="Center" />
+                            <TextBox x:Name="FullHours" Grid.Column="1" Padding="7,5" Margin="0,2,0,2" />
+                            <TextBlock Grid.Column="2" Text=" hr" VerticalAlignment="Center" />
+                            <TextBox x:Name="FullMinutes" Grid.Column="3" Padding="7,5" Margin="0,2,0,2" />
+                            <TextBlock Grid.Column="4" Text=" min" VerticalAlignment="Center" />
+                            <CheckBox x:Name="DifferentialEnabled" Grid.Row="1" Content="Differential" VerticalAlignment="Center" />
+                            <TextBox x:Name="DifferentialHours" Grid.Row="1" Grid.Column="1" Padding="7,5" Margin="0,2,0,2" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text=" hr" VerticalAlignment="Center" />
+                            <TextBox x:Name="DifferentialMinutes" Grid.Row="1" Grid.Column="3" Padding="7,5" Margin="0,2,0,2" />
+                            <TextBlock Grid.Row="1" Grid.Column="4" Text=" min" VerticalAlignment="Center" />
+                            <CheckBox x:Name="LogEnabled" Grid.Row="2" Content="Transaction Log" VerticalAlignment="Center" />
+                            <TextBox x:Name="LogHours" Grid.Row="2" Grid.Column="1" Padding="7,5" Margin="0,2,0,2" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text=" hr" VerticalAlignment="Center" />
+                            <TextBox x:Name="LogMinutes" Grid.Row="2" Grid.Column="3" Padding="7,5" Margin="0,2,0,2" />
+                            <TextBlock Grid.Row="2" Grid.Column="4" Text=" min" VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock Text="First Full backup start" Foreground="#36526B" />
+                        <DockPanel Margin="0,6,0,14">
+                            <TextBox x:Name="StartTime" DockPanel.Dock="Right" Width="80" Padding="7,5" Margin="10,0,0,0" ToolTip="24-hour time, HH:mm" />
+                            <DatePicker x:Name="StartDate" />
+                        </DockPanel>
+                        <TextBlock Text="Time zone" Foreground="#36526B" />
+                        <ComboBox x:Name="TimeZone" DisplayMemberPath="DisplayName" SelectedValuePath="Id" Margin="0,6,0,16" />
+                        <CheckBox x:Name="WindowEnabled" Content="Run only within this time window" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,16">
+                            <TextBox x:Name="WindowStart" Width="80" Padding="7,5" />
+                            <TextBlock Text="  to  " VerticalAlignment="Center" />
+                            <TextBox x:Name="WindowEnd" Width="80" Padding="7,5" />
+                            <TextBlock Text="  HH:mm" Foreground="#8192A3" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="Run on" Foreground="#36526B" />
+                        <WrapPanel x:Name="WeekdayPanel" Margin="0,8,0,14" />
+                        <CheckBox x:Name="MonthDaysEnabled" Content="Only on these days of the month" />
+                        <TextBox x:Name="MonthDays" Margin="0,8,0,16" Padding="7,5" ToolTip="Comma-separated days, for example 1,15,28" />
+                        <CheckBox x:Name="RunMissed" Content="Run one catch-up backup after downtime" IsChecked="True" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Estimated backup plan" FontWeight="SemiBold" Foreground="#36526B" Margin="0,0,0,12" />
+                        <ListBox x:Name="PreviewList" Height="280" FontSize="12" BorderBrush="#D6E1EC" />
+                        <Button Content="Refresh preview" Padding="12,7" Margin="0,10,0,18" Click="Preview_Click" />
+                        <TextBlock Text="Scheduled Full backups establish a regular Differential base. Copy-only applies to manual Full backups only." TextWrapping="Wrap" Foreground="#71869A" FontSize="12" />
+                        <TextBlock Text="Log backups require FULL or BULK_LOGGED recovery and an established chain. Database settings are never changed automatically." TextWrapping="Wrap" Foreground="#71869A" FontSize="12" Margin="0,14,0,0" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock x:Name="Status" TextWrapping="Wrap" Foreground="#925C46" Margin="0,18,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+        <Border Grid.Row="2" Background="White" Padding="20,15" BorderBrush="#DDE6EF" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <Button Content="Cancel" DockPanel.Dock="Right" Padding="13,6" Margin="8,0,0,0" IsCancel="True" />
+                <Button Content="Save &amp; Close" DockPanel.Dock="Right" Padding="13,6" Click="Save_Click" IsDefault="True" />
+                <Button Content="Typical weekly plan" Padding="12,8" HorizontalAlignment="Left" Click="Preset_Click" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

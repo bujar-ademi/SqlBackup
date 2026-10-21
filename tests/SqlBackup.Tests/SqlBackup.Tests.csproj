@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SqlBackup.Infrastructure\SqlBackup.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\SqlBackup.Service\SqlBackup.Service.csproj" />
+    <ProjectReference Include="..\..\src\SqlBackup.Desktop\SqlBackup.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\SqlBackup.Setup\SqlBackup.Setup.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
+

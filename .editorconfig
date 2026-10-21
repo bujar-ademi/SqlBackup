@@ -1,0 +1,9 @@
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = true:warning
+csharp_style_allow_embedded_statements_on_same_line_experimental = false:warning
+csharp_style_allow_blank_lines_between_consecutive_braces_experimental = false:silent
