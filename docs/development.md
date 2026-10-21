@@ -46,5 +46,7 @@ Output is under `.artifacts/installer`: a self-contained win-x64 installer and S
 
 The Windows workflow builds, tests and packages. Version-tag pushes create a draft prerelease after the configured checks succeed. Branch builds do not create releases. Inspect the draft and evidence before public publication.
 
+Artifact uploads explicitly allow the hidden `.artifacts` directory, restricted to the listed installer/checksum files and validation PNG/log patterns. Do not broaden these paths to configuration databases, credentials or real backup files.
+
 `scripts/Test-Installer.ps1` is only for an empty disposable elevated Windows VM. It refuses an existing installation/data/service. Build Release tests and two successive installer versions, then explicitly pass -AllowInstallation outside GitHub Actions. It exercises installation, restart, synthetic rollback, upgrade and retained-data uninstall/reinstall. Discard the VM afterward. Never run this harness on a server hosting real jobs.
 

@@ -73,18 +73,20 @@ jobs:
               -InstallerPath ".artifacts/installer/SqlBackup-Setup-$env:PACKAGE_VERSION-win-x64.exe" `
               -UpgradeInstallerPath ".artifacts/installer/SqlBackup-Setup-$env:SMOKE_UPGRADE_VERSION-win-x64.exe"
       - name: Upload requested installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-installer
+          include-hidden-files: true
           path: |
             .artifacts/installer/SqlBackup-Setup-${{ steps.version.outputs.version }}-win-x64.exe
             .artifacts/installer/SqlBackup-Setup-${{ steps.version.outputs.version }}-win-x64.exe.sha256
           if-no-files-found: error
       - name: Upload validation evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-validation
+          include-hidden-files: true
           path: |
             .artifacts/*.png
             .artifacts/installer-logs/*.log
@@ -97,7 +99,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: windows-installer
           path: installer
