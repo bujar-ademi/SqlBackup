@@ -47,6 +47,7 @@ builder.Services.AddSingleton<RetentionService>();
 builder.Services.AddSingleton<IBackupHistoryInspector, SqlBackupHistoryInspector>();
 builder.Services.AddSingleton<ConnectionSecrets>();
 builder.Services.AddSingleton<StorageSecrets>();
+builder.Services.AddSingleton<DestinationStorage>();
 builder.Services.AddSingleton<ISqlBackupEngine, SqlBackupEngine>();
 builder.Services.AddSingleton<DestinationDiagnostics>();
 builder.Services.AddSingleton<BackupCoordinator>();

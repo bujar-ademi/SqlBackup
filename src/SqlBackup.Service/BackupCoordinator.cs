@@ -12,7 +12,8 @@ public sealed class BackupCoordinator(
     RunStore runs,
     ConnectionSecrets secrets,
     ISqlBackupEngine engine,
-    ILogger<BackupCoordinator> logger) : BackgroundService
+    ILogger<BackupCoordinator> logger,
+    DestinationStorage? destinationStorage = null) : BackgroundService
 {
     private readonly Channel<BackupRun> queue = Channel.CreateBounded<BackupRun>(16);
     private readonly SemaphoreSlim enqueueLock = new(1, 1);
@@ -48,6 +49,13 @@ public sealed class BackupCoordinator(
         {
             var snapshot = await secrets.ReadSnapshotAsync(job.Id, cancellationToken);
             _ = ConnectionSecrets.UnprotectPassword(snapshot);
+            var destinationCredentials = await new DestinationSecrets(configurationStore).PrepareAsync(job, null, cancellationToken);
+            foreach (var destinationCredential in destinationCredentials)
+            {
+                _ = DestinationSecrets.Unprotect(destinationCredential.ProtectedSecret);
+                _ = DestinationSecrets.Unprotect(destinationCredential.ProtectedSessionToken);
+            }
+
             var access = await new StorageSecrets(configurationStore).PrepareAsync(job, null, cancellationToken);
             StorageSecrets.ValidateSnapshot(job, access);
             foreach (var credential in new[] { access.Source, access.Destination, access.Secondary })
@@ -125,7 +133,7 @@ public sealed class BackupCoordinator(
             }
 
             bool directDestinationSelected = false;
-            if (DirectBackupPolicy.IsCandidate(job))
+            if (job.Destinations is null && DirectBackupPolicy.IsCandidate(job))
             {
                 try
                 {
@@ -140,6 +148,24 @@ public sealed class BackupCoordinator(
             }
 
             var storageAccess = await new StorageSecrets(configurationStore).PrepareAsync(job, null, cancellationToken);
+            var destinationAccess = await new DestinationSecrets(configurationStore).PrepareAsync(job, null, cancellationToken);
+            BackupDestinationPlan? destinationPlan = null;
+            if (job.Destinations is not null)
+            {
+                try
+                {
+                    destinationPlan = await new BackupDestinationPlanner(engine).SelectAsync(job, connection, cancellationToken);
+                }
+                catch (Exception exception) when (exception is Microsoft.Data.SqlClient.SqlException
+                    or IOException or UnauthorizedAccessException or TimeoutException)
+                {
+                    string fallback = job.TemporaryFolder ?? BackupLocations.DefaultTemporaryFolder;
+                    destinationPlan = new BackupDestinationPlan(fallback, job.Storage?.ServiceSourceFolder ?? fallback, null);
+                    logger.LogWarning("Destination inspection was unavailable; retaining staging. EventCode={EventCode}",
+                        "DestinationInspectionUnavailable");
+                }
+            }
+
             if (directDestinationSelected)
             {
                 job = job with { TemporaryFolder = null };
@@ -152,7 +178,9 @@ public sealed class BackupCoordinator(
                     StageStatus.Pending, job.Verify ? StageStatus.Pending : StageStatus.Skipped)).ToArray(),
                 directDestinationSelected
                     ? $"Queued for {type} backup. SQL Server will write directly to the local final folder; staging is unnecessary."
-                    : $"Queued for {type} backup.", Type: type, ScheduledForUtc: scheduledForUtc, OccurrenceKey: occurrenceKey);
+                    : $"Queued for {type} backup.", Type: type, ScheduledForUtc: scheduledForUtc, OccurrenceKey: occurrenceKey,
+                SqlOutputFolder: destinationPlan?.SqlFolder, ServiceOutputFolder: destinationPlan?.ServiceFolder,
+                DirectDestinationId: destinationPlan?.DirectDestinationId);
 
             // One reader serializes all executions, preventing database overlap across jobs in this service.
             if (activeJobs.Count >= 16)
@@ -160,7 +188,7 @@ public sealed class BackupCoordinator(
                 throw new ArgumentException("The execution queue is full. Wait for an active job to finish.");
             }
 
-            await runs.AddAsync(run, connection.ProtectedPassword, cancellationToken, storageAccess);
+            await runs.AddAsync(run, connection.ProtectedPassword, cancellationToken, storageAccess, destinationAccess);
             activeJobs.Add(jobId);
             if (!queue.Writer.TryWrite(run))
             {
@@ -230,12 +258,19 @@ public sealed class BackupCoordinator(
 
     private async Task ExecuteRunAsync(BackupRun queued, CancellationToken cancellationToken)
     {
+        if (queued.IsTransferRetry)
+        {
+            await ExecuteTransferRetryAsync(queued, cancellationToken);
+            return;
+        }
+
         var run = queued with { Status = RunStatus.Running, StartedUtc = DateTimeOffset.UtcNow, Message = "Checking SQL prerequisites." };
         await runs.UpdateAsync(run, cancellationToken);
         try
         {
             var connection = await runs.ReadConnectionAsync(run, cancellationToken);
             var storageAccess = await new StorageSecrets(configurationStore).ReadRunAsync(run.Id, cancellationToken);
+            var destinationAccess = await new DestinationSecrets(configurationStore).ReadRunAsync(run.Id, cancellationToken);
             ServerInspection inspection;
             while (true)
             {
@@ -272,7 +307,7 @@ public sealed class BackupCoordinator(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 string database = run.Job.Databases[index];
-                string path = BackupSql.CreateArtifactPath(run.Job, database, run.Id, run.CreatedUtc, run.Type);
+                string path = BackupArtifactPaths.SqlPath(run, database);
                 var result = await engine.ExecuteAsync(connection, run.Job, database, path,
                     async progress =>
                     {
@@ -282,6 +317,24 @@ public sealed class BackupCoordinator(
                     }, cancellationToken, run.Type);
                 run.Databases[index] = result;
                 await runs.UpdateAsync(run, cancellationToken);
+                if (run.Job.Destinations is not null)
+                {
+                    var transfers = new DestinationTransferService(destinationStorage ?? new DestinationStorage());
+                    async Task ReportAsync(DatabaseBackupResult progress)
+                    {
+                        run.Databases[index] = progress;
+                        await runs.UpdateAsync(run, cancellationToken);
+                    }
+
+                    result = await transfers.ProcessAsync(run, result, destinationAccess, storageAccess, ReportAsync, cancellationToken);
+                    run.Databases[index] = result;
+                    await runs.UpdateAsync(run, cancellationToken);
+                    result = await transfers.CleanupAsync(run, result, destinationAccess, storageAccess, ReportAsync, cancellationToken);
+                    run.Databases[index] = result;
+                    await runs.UpdateAsync(run, cancellationToken);
+                    continue;
+                }
+
                 if (result.Backup == StageStatus.Succeeded)
                 {
                     var destinations = new List<string>();
@@ -324,6 +377,8 @@ public sealed class BackupCoordinator(
             bool failed = run.Databases.Any(result => result.Backup != StageStatus.Succeeded
                 || (run.Job.Verify && result.Verification != StageStatus.Succeeded)
                 || result.Copies?.Any(copy => copy.Status != StageStatus.Succeeded) == true
+                || (run.Job.Destinations is not null
+                    && result.DestinationTransfers?.Count(item => item.Status == StageStatus.Succeeded) != run.Job.Destinations.Length)
                 || result.StagingCleanup == StageStatus.Failed);
             run = run with
             {
@@ -346,6 +401,7 @@ public sealed class BackupCoordinator(
                 Backup = result.Backup == StageStatus.Running ? StageStatus.Unknown : result.Backup,
                 Verification = result.Verification == StageStatus.Running ? StageStatus.Unknown : result.Verification,
                 StagingCleanup = result.StagingCleanup == StageStatus.Running ? StageStatus.Unknown : result.StagingCleanup,
+                DestinationTransfers = MarkUncertainTransfers(result.DestinationTransfers),
                 Copies = result.Copies?.Select(copy => copy.Status == StageStatus.Running
                     ? copy with { Status = StageStatus.Unknown, Message = "Transfer interrupted; inspect partial output." }
                     : copy).ToArray()
@@ -370,6 +426,7 @@ public sealed class BackupCoordinator(
             Backup = result.Backup == StageStatus.Running ? StageStatus.Unknown : result.Backup,
             Verification = result.Verification == StageStatus.Running ? StageStatus.Unknown : result.Verification,
             StagingCleanup = result.StagingCleanup == StageStatus.Running ? StageStatus.Unknown : result.StagingCleanup,
+            DestinationTransfers = MarkUncertainTransfers(result.DestinationTransfers),
             Copies = result.Copies?.Select(copy => copy.Status == StageStatus.Running
                 ? copy with { Status = StageStatus.Unknown, Message = "Transfer interrupted; inspect partial output." }
                 : copy).ToArray()
@@ -381,5 +438,102 @@ public sealed class BackupCoordinator(
             Databases = databases,
             Message = "Service stopping. Completed stages are retained; uncertain SQL outcomes need manual inspection."
         };
+    }
+
+    private static DestinationTransfer[]? MarkUncertainTransfers(DestinationTransfer[]? transfers)
+    {
+        return transfers?.Select(transfer => transfer.Status == StageStatus.Running
+            ? transfer with { Status = StageStatus.Unknown, Message = "Transfer interrupted; confirmation is required before cleanup." }
+            : transfer).ToArray();
+    }
+
+    public async Task<Guid> RetryDestinationsAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        await ready.Task.WaitAsync(cancellationToken);
+        await enqueueLock.WaitAsync(cancellationToken);
+        try
+        {
+            var run = await runs.GetAsync(runId, cancellationToken);
+            if (IsMaintenanceActive || activeJobs.Contains(run.Job.Id) || activeJobs.Count >= 16)
+            {
+                throw new ArgumentException("Maintenance or queued/running work prevents transfer retries. Wait and try again.");
+            }
+
+            if (run.Job.Destinations is null || run.Status is not (RunStatus.Failed or RunStatus.Interrupted)
+                || !run.Databases.Any(result => result.Backup == StageStatus.Succeeded
+                    && (!run.Job.Verify || result.Verification == StageStatus.Succeeded)
+                    && result.StagingCleanup != StageStatus.Succeeded))
+            {
+                throw new ArgumentException("This run has no retryable destination work with a retained source and completed verification.");
+            }
+
+            run = run with { IsTransferRetry = true, Status = RunStatus.Queued, CompletedUtc = null, Message = "Destination-only retry queued; SQL backup will not be repeated." };
+            await runs.UpdateAsync(run, cancellationToken);
+            activeJobs.Add(run.Job.Id);
+            if (!queue.Writer.TryWrite(run))
+            {
+                activeJobs.Remove(run.Job.Id);
+                await runs.UpdateAsync(MarkInterrupted(run), CancellationToken.None);
+                throw new ArgumentException("The service is stopping. Transfer retry was not started.");
+            }
+
+            return run.Id;
+        }
+        finally
+        {
+            enqueueLock.Release();
+        }
+    }
+
+    private async Task ExecuteTransferRetryAsync(BackupRun queued, CancellationToken cancellationToken)
+    {
+        var run = queued with { Status = RunStatus.Running, Message = "Retrying destination work only." };
+        await runs.UpdateAsync(run, cancellationToken);
+        try
+        {
+            var credentials = await new DestinationSecrets(configurationStore).ReadRunAsync(run.Id, cancellationToken);
+            var sourceAccess = await new StorageSecrets(configurationStore).ReadRunAsync(run.Id, cancellationToken);
+            var transfers = new DestinationTransferService(destinationStorage ?? new DestinationStorage());
+            for (int index = 0; index < run.Databases.Length; index++)
+            {
+                var result = run.Databases[index];
+                if (result.StagingCleanup == StageStatus.Succeeded)
+                {
+                    continue;
+                }
+
+                async Task ReportAsync(DatabaseBackupResult progress)
+                {
+                    run.Databases[index] = progress;
+                    await runs.UpdateAsync(run, cancellationToken);
+                }
+
+                result = await transfers.ProcessAsync(run, result, credentials, sourceAccess, ReportAsync, cancellationToken);
+                result = await transfers.CleanupAsync(run, result, credentials, sourceAccess, ReportAsync, cancellationToken);
+                run.Databases[index] = result;
+                await runs.UpdateAsync(run, cancellationToken);
+            }
+
+            bool succeeded = run.Databases.All(result => result.Backup == StageStatus.Succeeded
+                && (!run.Job.Verify || result.Verification == StageStatus.Succeeded)
+                && result.DestinationTransfers?.Count(transfer => transfer.Status == StageStatus.Succeeded) == run.Job.Destinations!.Length
+                && result.StagingCleanup != StageStatus.Failed);
+            run = run with
+            {
+                Status = succeeded ? RunStatus.Succeeded : RunStatus.Failed,
+                CompletedUtc = DateTimeOffset.UtcNow,
+                Message = succeeded ? "Destination retry completed. SQL backup was not repeated." : "Some destination work remains incomplete. Inspect each result."
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            run = MarkInterrupted(run);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            run = MarkInterrupted(run) with { Status = RunStatus.Failed, Message = DestinationFailure.Describe(exception) };
+        }
+
+        await runs.UpdateAsync(run, CancellationToken.None);
     }
 }

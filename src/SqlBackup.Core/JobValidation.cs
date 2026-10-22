@@ -24,6 +24,12 @@ public static class JobValidation
             }
         }
 
+        if (job.Destinations is not null)
+        {
+            DestinationValidation.ValidateAll(job);
+            return;
+        }
+
         ValidateDestination(job.Destination);
         ValidateStorage(job.Destination, job.Storage);
         ValidateTemporaryFolder(job);

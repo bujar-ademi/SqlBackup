@@ -120,6 +120,37 @@ public static class DialogChecks
         Check(pendingSave.IsCompletedSuccessfully && pendingDestination.SelectedDestination is null,
             "A late folder-check response cannot apply a cancelled destination draft");
 
+        var multiJob = first with
+        {
+            TemporaryFolder = @"C:\FixtureStaging",
+            Destinations =
+            [
+                new BackupDestination(Guid.NewGuid(), "Local backup", DestinationKind.Folder, @"D:\Backup"),
+                new BackupDestination(Guid.NewGuid(), "Azure copy", DestinationKind.AzureBlob,
+                    "https://fictionalaccount.blob.core.windows.net/backups", "sql"),
+                new BackupDestination(Guid.NewGuid(), "S3 copy", DestinationKind.AmazonS3,
+                    "fictional-backup-bucket", "sql", "eu-central-1", "FictionalKeyId")
+            ]
+        };
+        var multi = new JobDestinationsDialog(multiJob, string.Empty, submitted =>
+        {
+            request = submitted;
+            return Task.FromResult(new ServiceResponse(true, "SQL output visible"));
+        });
+        ((ListBox)multi.FindName("DestinationList")).SelectedIndex = 1;
+        ((PasswordBox)multi.FindName("Secret")).Password = "FictionalAzureSas";
+        Check(multi.ApplyDestination(), "The destination editor applies an Azure draft without exposing its SAS in metadata");
+        ((ListBox)multi.FindName("DestinationList")).SelectedIndex = 2;
+        ((PasswordBox)multi.FindName("Secret")).Password = "FictionalS3Secret";
+        var multiSave = multi.CheckAndApplyAsync();
+        Check(multiSave.IsCompletedSuccessfully && multi.SelectedJob?.Destinations?.Length == 3
+            && multi.SelectedPasswords.Single(item => item.DestinationId == multiJob.Destinations[1].Id).Secret == "FictionalAzureSas"
+            && request?.Job?.Destinations?.Length == 3,
+            "A single job draft retains local, Azure and S3 destinations with separately submitted secrets");
+        Check(multiJob.Destinations[2].UserName == "FictionalKeyId", "Destination editing preserves the original saved job");
+        Render(multi, Path.ChangeExtension(previewPath, ".destinations.png"), 760, 800);
+        multi.Close();
+
         var original = new BackupSchedule(true, "Central European Standard Time", new DateTime(2026, 10, 21, 23, 55, 0),
             10080, 1440, 15, Enum.GetValues<DayOfWeek>(), []);
         var schedule = new ScheduleDialog(original);

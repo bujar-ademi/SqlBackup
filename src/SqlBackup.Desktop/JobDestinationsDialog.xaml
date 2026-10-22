@@ -1,0 +1,92 @@
+<Window x:Class="SqlBackup.Desktop.JobDestinationsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Backup destinations" Width="760" Height="800" MinWidth="650" MinHeight="560"
+        Icon="/SqlBackup.Desktop;component/Assets/sqlbackup.ico"
+        WindowStartupLocation="CenterOwner" Background="#F3F6FA" FontFamily="Segoe UI" FontSize="12">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="White" Padding="20,14">
+            <StackPanel>
+                <TextBlock Text="Backup destinations" FontSize="20" FontWeight="SemiBold" Foreground="#243E56" />
+                <TextBlock Text="Create one backup, then deliver it to every destination." Foreground="#647D93" Margin="0,5,0,0" />
+            </StackPanel>
+        </Border>
+        <Border DockPanel.Dock="Bottom" Background="White" Padding="20,12">
+            <DockPanel>
+                <Button x:Name="TestButton" Content="Test access" Click="Test_Click" Padding="14,6" HorizontalAlignment="Left" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Cancel" IsCancel="True" Padding="14,6" Margin="0,0,8,0" />
+                    <Button x:Name="SaveButton" Content="Save &amp; Close" Click="Save_Click" Padding="14,6" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="Editor" Margin="20,14">
+                <ListBox x:Name="DestinationList" Height="125" SelectionChanged="Destination_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="4">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Location}" Foreground="#647D93" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,12">
+                    <Button Content="+ Add destination ▾" Click="Add_Click" Padding="10,5" />
+                    <Button Content="Remove selected" Click="Remove_Click" Padding="10,5" Margin="8,0,0,0" />
+                </StackPanel>
+                <GroupBox x:Name="DestinationEditor" Header="Destination settings" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Name" />
+                        <TextBox x:Name="DestinationName" Padding="7,4" MaxLength="100" Margin="0,4,0,8" />
+                        <TextBlock Text="Type" />
+                        <ComboBox x:Name="Kind" SelectionChanged="Kind_SelectionChanged" Margin="0,4,0,8">
+                            <ComboBoxItem Content="Local / Network folder / NAS" />
+                            <ComboBoxItem Content="Azure Blob Storage" />
+                            <ComboBoxItem Content="Amazon S3" />
+                        </ComboBox>
+                        <TextBlock x:Name="LocationLabel" Text="Folder path" />
+                        <TextBox x:Name="Location" Padding="7,4" MaxLength="512" Margin="0,4,0,8" />
+                        <StackPanel x:Name="CloudFields">
+                            <TextBlock Text="Object prefix (optional)" />
+                            <TextBox x:Name="Prefix" Padding="7,4" MaxLength="256" Margin="0,4,0,8" />
+                        </StackPanel>
+                        <StackPanel x:Name="RegionFields">
+                            <TextBlock Text="AWS region (for example eu-central-1)" />
+                            <TextBox x:Name="Region" Padding="7,4" MaxLength="40" Margin="0,4,0,8" />
+                        </StackPanel>
+                        <StackPanel x:Name="UserFields">
+                            <TextBlock x:Name="UserLabel" Text="Share user name (optional)" />
+                            <TextBox x:Name="UserName" Padding="7,4" MaxLength="256" Margin="0,4,0,8" />
+                        </StackPanel>
+                        <TextBlock x:Name="SecretLabel" Text="Share password" />
+                        <PasswordBox x:Name="Secret" Padding="7,4" MaxLength="8192" Margin="0,4,0,8" />
+                        <StackPanel x:Name="SessionFields">
+                            <TextBlock Text="AWS session token (optional, for temporary credentials)" />
+                            <PasswordBox x:Name="SessionToken" Padding="7,4" MaxLength="8192" Margin="0,4,0,8" />
+                        </StackPanel>
+                        <TextBlock Text="Blank secrets keep saved credentials only for the same destination identity. Changed accounts or locations require new credentials." TextWrapping="Wrap" Foreground="#647D93" />
+                        <TextBlock Text="Recovery window in days (0 = keep all; cleanup requires review)" Margin="0,10,0,4" />
+                        <TextBox x:Name="RetentionDays" Text="0" Padding="7,4" />
+                        <Button Content="Apply destination" Click="Apply_Click" HorizontalAlignment="Left" Padding="10,5" Margin="0,10,0,0" />
+                    </StackPanel>
+                </GroupBox>
+                <Expander Header="SQL temporary folder and remote source access" Margin="0,16,0,0">
+                    <StackPanel Margin="8,10,0,0">
+                        <TextBlock Text="The service automatically writes directly to a suitable local destination. Otherwise it uses this temporary SQL folder and removes the source only after every destination is confirmed. Drive letters refer to the SQL Server host." TextWrapping="Wrap" Foreground="#647D93" />
+                        <TextBlock Text="Temporary folder on SQL Server" Margin="0,10,0,4" />
+                        <TextBox x:Name="TemporaryFolder" Padding="7,4" MaxLength="512" />
+                        <TextBlock Text="Service-visible source folder (optional mapping for remote SQL)" Margin="0,10,0,4" />
+                        <TextBox x:Name="SourceFolder" Padding="7,4" MaxLength="512" />
+                        <TextBlock Text="Source share user name (optional)" Margin="0,10,0,4" />
+                        <TextBox x:Name="SourceUser" Padding="7,4" MaxLength="256" />
+                        <TextBlock Text="Source share password (blank keeps unchanged saved credentials)" Margin="0,10,0,4" />
+                        <PasswordBox x:Name="SourcePassword" Padding="7,4" MaxLength="1024" />
+                    </StackPanel>
+                </Expander>
+                <TextBlock x:Name="Status" TextWrapping="Wrap" Foreground="#A14B17" Margin="0,12,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

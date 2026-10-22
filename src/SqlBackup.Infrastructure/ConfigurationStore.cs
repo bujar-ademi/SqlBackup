@@ -50,7 +50,7 @@ public sealed class ConfigurationStore
         await using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA user_version;";
         long version = (long)(await command.ExecuteScalarAsync(cancellationToken) ?? 0L);
-        if (version > 8)
+        if (version > 9)
         {
             throw new InvalidOperationException("The configuration schema requires a newer application version.");
         }
@@ -87,6 +87,14 @@ public sealed class ConfigurationStore
                 Payload TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS RunStorageSecrets (
+                RunId TEXT PRIMARY KEY,
+                Payload TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS JobDestinationSecrets (
+                JobId TEXT PRIMARY KEY,
+                Payload TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS RunDestinationSecrets (
                 RunId TEXT PRIMARY KEY,
                 Payload TEXT NOT NULL
             );
@@ -129,7 +137,7 @@ public sealed class ConfigurationStore
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        command.CommandText = "CREATE UNIQUE INDEX IF NOT EXISTS IX_Runs_ScheduledKey ON Runs(ScheduledKey); PRAGMA user_version = 8;";
+        command.CommandText = "CREATE UNIQUE INDEX IF NOT EXISTS IX_Runs_ScheduledKey ON Runs(ScheduledKey); PRAGMA user_version = 9;";
         await command.ExecuteNonQueryAsync(cancellationToken);
         transaction.Commit();
     }

@@ -6,6 +6,12 @@ namespace SqlBackup.Infrastructure;
 
 public sealed class JobStore(ConfigurationStore store)
 {
+    public Task<DestinationCredentialSnapshot[]> PrepareDestinationsAsync(BackupJob job,
+        DestinationPassword[]? passwords, CancellationToken cancellationToken)
+    {
+        return new DestinationSecrets(store).PrepareAsync(job, passwords, cancellationToken);
+    }
+
     public Task<StorageAccessSnapshot> PrepareStorageAsync(BackupJob job, StoragePasswords? passwords,
         CancellationToken cancellationToken)
     {
@@ -37,7 +43,7 @@ public sealed class JobStore(ConfigurationStore store)
     }
 
     public async Task SaveAsync(BackupJob job, CancellationToken cancellationToken, string? password = null,
-        StoragePasswords? storagePasswords = null)
+        StoragePasswords? storagePasswords = null, DestinationPassword[]? destinationPasswords = null)
     {
         JobValidation.Validate(job);
         if (job.Schedule is not null)
@@ -46,6 +52,7 @@ public sealed class JobStore(ConfigurationStore store)
         }
         var snapshot = await new ConnectionSecrets(store).PrepareAsync(job, password, cancellationToken);
         var storageAccess = await new StorageSecrets(store).PrepareAsync(job, storagePasswords, cancellationToken);
+        var destinationAccess = await new DestinationSecrets(store).PrepareAsync(job, destinationPasswords, cancellationToken);
         await using var connection = new SqliteConnection(store.ConnectionString);
         await connection.OpenAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
@@ -95,6 +102,14 @@ public sealed class JobStore(ConfigurationStore store)
         command.Parameters.AddWithValue("$id", job.Id.ToString());
         command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(storageAccess));
         await command.ExecuteNonQueryAsync(cancellationToken);
+        command.CommandText = """
+            INSERT INTO JobDestinationSecrets (JobId, Payload) VALUES ($id, $payload)
+            ON CONFLICT(JobId) DO UPDATE SET Payload = excluded.Payload;
+            """;
+        command.Parameters.Clear();
+        command.Parameters.AddWithValue("$id", job.Id.ToString());
+        command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(destinationAccess));
+        await command.ExecuteNonQueryAsync(cancellationToken);
         transaction.Commit();
     }
 
@@ -116,6 +131,8 @@ public sealed class JobStore(ConfigurationStore store)
         command.CommandText = "DELETE FROM JobSecrets WHERE JobId = $id;";
         await command.ExecuteNonQueryAsync(cancellationToken);
         command.CommandText = "DELETE FROM JobStorageSecrets WHERE JobId = $id;";
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        command.CommandText = "DELETE FROM JobDestinationSecrets WHERE JobId = $id;";
         await command.ExecuteNonQueryAsync(cancellationToken);
         command.CommandText = "DELETE FROM ScheduleState WHERE JobId = $id;";
         await command.ExecuteNonQueryAsync(cancellationToken);

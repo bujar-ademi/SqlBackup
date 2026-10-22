@@ -4,13 +4,15 @@ using SqlBackup.Infrastructure;
 namespace SqlBackup.Service;
 
 public sealed class JobDiagnosticsService(JobStore jobs, ConnectionSecrets secrets, ISqlBackupEngine engine,
-    DestinationDiagnostics destination, StorageDiagnostics storage, StorageSecrets? storageSecrets = null)
+    DestinationDiagnostics destination, StorageDiagnostics storage, StorageSecrets? storageSecrets = null,
+    DestinationStorage? destinationStorage = null)
 {
     public async Task<DiagnosticItem[]> CheckAsync(Guid jobId, CancellationToken cancellationToken)
     {
         var job = await jobs.GetAsync(jobId, cancellationToken);
         var checks = new List<DiagnosticItem>();
         string sqlStage = "SQL connection";
+        BackupDestinationPlan? plan = null;
         try
         {
             var connection = await secrets.ReadSnapshotAsync(jobId, cancellationToken);
@@ -39,7 +41,12 @@ public sealed class JobDiagnosticsService(JobStore jobs, ConnectionSecrets secre
             }
 
             sqlStage = "SQL destination visibility";
-            string visibility = await destination.CheckAsync(connection, BackupLocations.SqlFolder(job), cancellationToken);
+            if (job.Destinations is not null)
+            {
+                plan = await new BackupDestinationPlanner(engine).SelectAsync(job, connection, cancellationToken);
+            }
+
+            string visibility = await destination.CheckAsync(connection, plan?.SqlFolder ?? BackupLocations.SqlFolder(job), cancellationToken);
             checks.Add(new DiagnosticItem("SQL destination visibility", StageStatus.Succeeded,
                 visibility + " This does not prove SQL write permissions or a successful backup."));
         }
@@ -50,6 +57,41 @@ public sealed class JobDiagnosticsService(JobStore jobs, ConnectionSecrets secre
 
         var access = storageSecrets is null ? new StorageAccessSnapshot()
             : await storageSecrets.PrepareAsync(job, null, cancellationToken);
+        if (job.Destinations is not null)
+        {
+            bool direct = plan?.DirectDestinationId.HasValue == true;
+            var sourceJob = job with
+            {
+                Destinations = null,
+                Destination = plan?.ServiceFolder ?? BackupLocations.SourceFolder(job),
+                TemporaryFolder = null,
+                Storage = new StoragePolicy(SourceUserName: direct ? null : job.Storage?.SourceUserName)
+            };
+            checks.AddRange(await storage.CheckAsync(sourceJob, cancellationToken,
+                new StorageAccessSnapshot(Source: direct ? null : access.Source)));
+            var credentials = await jobs.PrepareDestinationsAsync(job, null, cancellationToken);
+            foreach (var credential in credentials)
+            {
+                try
+                {
+                    await (destinationStorage ?? new DestinationStorage()).For(credential.Destination.Kind)
+                        .CheckAccessAsync(credential, cancellationToken);
+                    checks.Add(new DiagnosticItem(credential.Destination.Name, StageStatus.Succeeded,
+                        "Destination is accessible. This does not prove a complete upload, sufficient capacity or restore."));
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception) when (exception is not OutOfMemoryException)
+                {
+                    checks.Add(new DiagnosticItem(credential.Destination.Name, StageStatus.Failed, DestinationFailure.Describe(exception)));
+                }
+            }
+
+            return checks.ToArray();
+        }
+
         checks.AddRange(await storage.CheckAsync(job, cancellationToken, access));
         return checks.ToArray();
     }

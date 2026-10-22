@@ -47,7 +47,11 @@ public static class OperationalProjection
                 var lastSuccess = matching.FirstOrDefault(item => item.Databases.Any(candidate =>
                     candidate.Database == database && candidate.Backup == StageStatus.Succeeded));
                 string copy = "Not configured";
-                if (result?.Copies is { Length: > 0 } copies)
+                if (result?.DestinationTransfers is { Length: > 0 } transfers)
+                {
+                    copy = string.Join(", ", transfers.Select(item => item.Status.ToString()).Distinct());
+                }
+                else if (result?.Copies is { Length: > 0 } copies)
                 {
                     copy = string.Join(", ", copies.Select(item => item.Status.ToString()).Distinct());
                 }

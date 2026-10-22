@@ -7,7 +7,8 @@ using SqlBackup.Infrastructure;
 namespace SqlBackup.Service;
 
 public sealed class RetentionService(JobStore jobs, RunStore runs, CleanupAuditStore audit,
-    ConnectionSecrets secrets, IBackupHistoryInspector historyInspector, StorageSecrets? storageSecrets = null)
+    ConnectionSecrets secrets, IBackupHistoryInspector historyInspector, StorageSecrets? storageSecrets = null,
+    ConfigurationStore? configuration = null, DestinationStorage? destinationStorage = null)
 {
     public Task<CleanupAudit[]> HistoryAsync(Guid jobId, CancellationToken cancellationToken)
     {
@@ -62,21 +63,28 @@ public sealed class RetentionService(JobStore jobs, RunStore runs, CleanupAuditS
                 string reason = decision.Reason;
                 try
                 {
-                    var access = storageSecrets is null ? new StorageAccessSnapshot()
-                        : await storageSecrets.ReadRunAsync(decision.Artifact.RunId, cancellationToken);
                     var historicalRun = await runs.GetAsync(decision.Artifact.RunId, cancellationToken);
-                    StorageSecrets.ValidateSnapshot(historicalRun.Job, access);
-                    var credential = string.Equals(decision.Artifact.Folder, historicalRun.Job.Storage?.SecondaryFolder,
-                        StringComparison.OrdinalIgnoreCase) ? access.Secondary
-                        : historicalRun.Job.TemporaryFolder is null ? access.Source : access.Destination;
-                    await ShareAccess.RunAsync(credential, async () =>
+                    if (historicalRun.Job.Destinations is not null)
                     {
-                        await ArtifactDeletion.DeleteVerifiedAsync(decision.Artifact.Path,
-                            decision.Artifact.Sha256!, cancellationToken);
-                        return true;
-                    });
+                        await DestinationReader().DeleteAsync(historicalRun, decision, cancellationToken);
+                    }
+                    else
+                    {
+                        var access = storageSecrets is null ? new StorageAccessSnapshot()
+                            : await storageSecrets.ReadRunAsync(decision.Artifact.RunId, cancellationToken);
+                        StorageSecrets.ValidateSnapshot(historicalRun.Job, access);
+                        var credential = string.Equals(decision.Artifact.Folder, historicalRun.Job.Storage?.SecondaryFolder,
+                            StringComparison.OrdinalIgnoreCase) ? access.Secondary
+                            : historicalRun.Job.TemporaryFolder is null ? access.Source : access.Destination;
+                        await ShareAccess.RunAsync(credential, async () =>
+                        {
+                            await ArtifactDeletion.DeleteVerifiedAsync(decision.Artifact.Path,
+                                decision.Artifact.Sha256!, cancellationToken);
+                            return true;
+                        });
+                    }
                 }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException)
+                catch (Exception exception) when (exception is not OperationCanceledException and not OutOfMemoryException)
                 {
                     outcome = "Failed";
                     reason = "Deletion could not be confirmed. Check access, availability and content changes.";
@@ -116,16 +124,27 @@ public sealed class RetentionService(JobStore jobs, RunStore runs, CleanupAuditS
 
         var previous = await audit.ListAsync(jobId, cancellationToken, all: true);
         var deleted = previous.Where(item => item.Outcome == "Deleted").Select(item => item.Path)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(job.Destinations is null ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         var decisions = new List<CleanupDecision>();
         string primaryFolder = BackupLocations.PrimaryFolder(job);
         var evidenceReader = new RetentionEvidenceReader(secrets, historyInspector, storageSecrets);
-        decisions.AddRange(await evidenceReader.ReadAsync(job, primaryFolder, policy.PrimaryRetentionDays,
-            false, history, deleted, cancellationToken));
-        if (!string.IsNullOrWhiteSpace(policy.SecondaryFolder))
+        if (job.Destinations is not null)
         {
-            decisions.AddRange(await evidenceReader.ReadAsync(job, policy.SecondaryFolder, policy.SecondaryRetentionDays,
-                true, history, deleted, cancellationToken));
+            var reader = DestinationReader();
+            foreach (var destination in job.Destinations)
+            {
+                decisions.AddRange(await reader.ReadAsync(job, destination, history, deleted, cancellationToken));
+            }
+        }
+        else
+        {
+            decisions.AddRange(await evidenceReader.ReadAsync(job, primaryFolder, policy.PrimaryRetentionDays,
+                false, history, deleted, cancellationToken));
+            if (!string.IsNullOrWhiteSpace(policy.SecondaryFolder))
+            {
+                decisions.AddRange(await evidenceReader.ReadAsync(job, policy.SecondaryFolder, policy.SecondaryRetentionDays,
+                    true, history, deleted, cancellationToken));
+            }
         }
 
         if (decisions.Count > 500)
@@ -138,5 +157,11 @@ public sealed class RetentionService(JobStore jobs, RunStore runs, CleanupAuditS
         return new CleanupPreview(token, decisions.ToArray(),
             "Preview only. Dependencies can retain older files. Only reviewed eligible files can be deleted.");
 
+    }
+
+    private DestinationRetentionReader DestinationReader()
+    {
+        return new DestinationRetentionReader(configuration ?? throw new IOException("Destination retention storage is unavailable."),
+            destinationStorage ?? new DestinationStorage(), secrets, historyInspector);
     }
 }

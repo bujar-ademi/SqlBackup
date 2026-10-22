@@ -10,7 +10,9 @@ Save & Close applies dialog edits to the current draft. Save job persists the co
 
 ## Storage
 
-Open Store backups in selected destinations. Set the final Local/Network Folder/NAS path and optional secondary copy. Temporary folder defaults to `%ProgramData%\SqlBackup\Temp` and remains editable. It must be visible to SQL Server; Save & Close checks visibility and warns if it is missing or inaccessible. The dialog does not create folders or grant permissions. SQL write access is checked by the actual backup operation.
+Click the plus beside Store backups in selected destinations, choose Local/Network/NAS, Azure Blob or Amazon S3 from the dropdown, then complete the selected type's form. The Add destination button inside the dialog offers the same choices. The three-dot button opens existing destinations for editing. Select a row to edit it and use Apply destination to keep its draft settings before editing another. Each destination has its own access credentials and recovery window. Test access checks folder access or cloud reachability; it does not prove a successful backup/upload. See [multiple destinations](backup-destinations.md) for provider configuration.
+
+Temporary folder defaults to `%ProgramData%\SqlBackup\Temp` and remains editable under SQL temporary folder and remote source access. A suitable local destination is selected automatically for direct SQL output; otherwise the temporary folder is used. Save & Close checks SQL visibility of the selected output folder and warns if it is missing or inaccessible. The dialog does not create folders or grant permissions. SQL write access is checked by the actual backup operation.
 
 For remote SQL, use a temporary path on that server and a service-visible source mapping to the same files. Configure independent UNC credentials where needed. See [staging and NAS](staging-and-nas.md).
 
@@ -21,6 +23,8 @@ Retention is expressed in days for each final destination; 0 keeps everything. O
 The Schedule gear opens interval, start-time, time-zone, weekday, monthly and missed-run settings with an estimated preview. Save the job to persist changes. See [scheduling rules](advanced-schedule-design.md).
 
 Run Now queues a saved job after review. The service continues execution when the desktop closes. History shows per-stage results; double-click a row or use Open selected job log for details. Exported logs can contain private database names and paths.
+
+Failed or interrupted destination-list runs expose Retry destinations in the job log. It retries delivery from the retained source using that execution's original credential snapshots, preserves completed destinations and does not repeat SQL backup. Renewed credentials apply to future runs; an old run with expired cloud credentials may require operator recovery of its retained source.
 
 ## Notifications and diagnostics
 

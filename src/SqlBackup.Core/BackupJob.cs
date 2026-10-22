@@ -15,4 +15,5 @@ public sealed record BackupJob(
     BackupSchedule? Schedule = null,
     StoragePolicy? Storage = null,
     JobNotificationPolicy? Notifications = null,
-    string? TemporaryFolder = null);
+    string? TemporaryFolder = null,
+    BackupDestination[]? Destinations = null);

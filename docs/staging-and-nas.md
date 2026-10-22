@@ -2,6 +2,8 @@
 
 SQL temporary staging and final storage use independent paths and Windows identities.
 
+This document describes the compatible primary/secondary folder workflow. Jobs edited through the new destination list use [multiple destinations](backup-destinations.md), including automatic local output selection and Azure/S3 delivery.
+
 ## Configuration and identities
 
 New jobs configure `%ProgramData%\SqlBackup\Temp` as the fallback Temporary folder (resolved on the application host). Existing jobs keep their saved paths. Before enqueueing each run, the service automatically checks whether a staging job can write directly to its final folder. No storage-mode checkbox is required.

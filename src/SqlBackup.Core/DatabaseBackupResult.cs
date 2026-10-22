@@ -19,4 +19,5 @@ public sealed record DatabaseBackupResult(
     ArtifactCopy[]? Copies = null,
     bool? HasSingleRecoveryFork = null,
     BackupType? HeaderType = null,
-    StageStatus? StagingCleanup = null);
+    StageStatus? StagingCleanup = null,
+    DestinationTransfer[]? DestinationTransfers = null);

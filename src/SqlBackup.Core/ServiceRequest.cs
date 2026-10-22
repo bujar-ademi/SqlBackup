@@ -10,4 +10,5 @@ public sealed record ServiceRequest(
     string? PreviewToken = null,
     HistoryQuery? History = null,
     string? NotificationKey = null,
-    StoragePasswords? StoragePasswords = null);
+    StoragePasswords? StoragePasswords = null,
+    DestinationPassword[]? DestinationPasswords = null);

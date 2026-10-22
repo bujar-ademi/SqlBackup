@@ -25,6 +25,8 @@ SQL writes to its configured temporary folder under the SQL service identity. Ab
 
 Retention uses recorded ownership, integrity and backup-chain dependencies. Missing or uncertain evidence blocks deletion. Cleanup records intent and outcome without erasing historical metadata.
 
+Destination-list jobs snapshot their SQL/service output folders and optional direct-folder identity per run. They share one SQL artifact across all folder/Azure Blob/Amazon S3 destinations. Schema 9 stores independently protected destination credentials separately from job/run JSON. Transfer-only retries use original run snapshots. Reviewed destination retention verifies content and dependencies before conditional deletion. Legacy primary/secondary jobs and historical payloads retain their original semantics. See [backup destinations](backup-destinations.md).
+
 ## Operations
 
 History uses bounded service-side paging. Database selection loads asynchronously, supports cancellation and can reuse a recent matching inspection. Job logs store observed transition timestamps. Local notifications are durable and require explicit read acknowledgements.

@@ -60,6 +60,15 @@ public static class RunLogProjection
                         _ => "Temporary cleanup could not be confirmed. Inspect staging; recorded final copies remain available."
                     }, result.Database));
             }
+
+            foreach (var transfer in result.DestinationTransfers ?? [])
+            {
+                var prior = old?.DestinationTransfers?.SingleOrDefault(item => item.DestinationId == transfer.DestinationId);
+                if (prior?.Status != transfer.Status || prior.Attempts != transfer.Attempts)
+                {
+                    entries.Add(new RunLogEntry(observedUtc, "Destination", transfer.Status.ToString(), transfer.Message, result.Database));
+                }
+            }
         }
 
         return entries.ToArray();
@@ -81,6 +90,11 @@ public static class RunLogProjection
             foreach (var copy in result.Copies ?? [])
             {
                 entries.Add(new RunLogEntry(null, "Copy", copy.Status.ToString(), copy.Message, result.Database));
+            }
+
+            foreach (var transfer in result.DestinationTransfers ?? [])
+            {
+                entries.Add(new RunLogEntry(null, "Destination", transfer.Status.ToString(), transfer.Message, result.Database));
             }
         }
 

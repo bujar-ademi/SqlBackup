@@ -8,6 +8,8 @@ public static class RunPresentation
         int verificationIssues = run.Databases.Count(item => item.Verification is StageStatus.Failed or StageStatus.Unknown);
         int copyIssues = run.Databases.SelectMany(item => item.Copies ?? [])
             .Count(item => item.Status is StageStatus.Failed or StageStatus.Unknown);
+        copyIssues += run.Databases.SelectMany(item => item.DestinationTransfers ?? [])
+            .Count(item => item.Status is StageStatus.Failed or StageStatus.Unknown);
         string stages = $"Backup {backups}/{run.Databases.Length} · Verify issues {verificationIssues} · Copy issues {copyIssues}";
         int cleanupIssues = run.Databases.Count(item => item.StagingCleanup is StageStatus.Failed or StageStatus.Unknown);
         if (cleanupIssues > 0)

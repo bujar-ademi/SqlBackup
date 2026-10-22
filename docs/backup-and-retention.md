@@ -2,6 +2,8 @@
 
 Retention cleanup requires explicit preview and confirmation; unattended deletion remains deferred.
 
+For destination-list jobs, each Local/Network/NAS, Azure Blob or Amazon S3 destination has an independent recovery window. Cloud ownership is identified by deterministic job/run keys and recorded hash/size/object identity. Reviewed cloud preview reads and hashes objects; deletion rechecks content and uses recorded version/ETag conditions. Provider lifecycle expiration is not configured because age alone does not establish safe deletion. See [backup destinations](backup-destinations.md).
+
 ## Backup prerequisites
 
 Inspect database state, recovery model, server edition/version, backup permissions, and supported options before execution. A Log backup requires an eligible recovery model and an established log backup chain. Report unmet prerequisites without changing the database automatically.

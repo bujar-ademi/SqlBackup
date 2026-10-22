@@ -21,13 +21,18 @@ public sealed class RetentionEvidenceReader(ConnectionSecrets secrets, IBackupHi
             } : decision).ToArray();
     }
 
-    private async Task<(RetentionArtifact[] Artifacts, bool Uncertain)> CollectArtifactsAsync(
+    public async Task<(RetentionArtifact[] Artifacts, bool Uncertain)> CollectArtifactsAsync(
         string folder, bool secondary, BackupRun[] history, HashSet<string> deleted, CancellationToken cancellationToken)
     {
         var artifacts = new List<RetentionArtifact>();
         bool uncertain = false;
         foreach (var run in history)
         {
+            if (run.Job.Destinations is not null)
+            {
+                continue;
+            }
+
             string historicalFolder = BackupLocations.PrimaryFolder(run.Job);
             if (secondary)
             {

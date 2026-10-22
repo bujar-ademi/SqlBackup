@@ -36,6 +36,13 @@ public static class RunDetailsFormatter
                 details.AppendLine(copy.Message);
             }
 
+            foreach (var transfer in database.DestinationTransfers ?? [])
+            {
+                string name = run.Job.Destinations?.SingleOrDefault(item => item.Id == transfer.DestinationId)?.Name ?? "Destination";
+                details.AppendLine($"{name}: {transfer.Status} · attempts {transfer.Attempts} · {transfer.Path}");
+                details.AppendLine(transfer.Message);
+            }
+
             if (database.SizeBytes.HasValue)
             {
                 details.AppendLine($"Backup payload size: {database.SizeBytes:N0} bytes");

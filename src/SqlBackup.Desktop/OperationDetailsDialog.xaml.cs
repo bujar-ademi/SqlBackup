@@ -98,6 +98,8 @@ public partial class OperationDetailsDialog : Window
     private void ApplyRun(BackupRun run, RunLogEntry[]? observed)
     {
         currentRun = run;
+        RetryButton.Visibility = run.Job.Destinations is not null && run.Status is RunStatus.Failed or RunStatus.Interrupted
+            ? Visibility.Visible : Visibility.Collapsed;
         Details.Text = RunDetailsFormatter.Format(run);
         JobLogTitle.Text = "Log of " + run.Job.Name;
         var summary = RunPresentation.Summarize(run);
@@ -145,6 +147,30 @@ public partial class OperationDetailsDialog : Window
         }
 
         LogRecords.ItemsSource = filtered.ToArray();
+    }
+
+    private async void Retry_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentRun is null || busy)
+        {
+            return;
+        }
+
+        RetryButton.IsEnabled = false;
+        try
+        {
+            var response = await sendAsync(new ServiceRequest("RetryDestinations", RunId: currentRun.Id));
+            EvidenceNote.Text = response.Message;
+            await LoadAsync();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            EvidenceNote.Text = "The retry could not be confirmed. Refresh the run before trying again.";
+        }
+        finally
+        {
+            RetryButton.IsEnabled = true;
+        }
     }
 
     private void Filter_Changed(object sender, SelectionChangedEventArgs e)

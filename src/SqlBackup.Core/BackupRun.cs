@@ -13,4 +13,8 @@ public sealed record BackupRun(
     BackupType Type = BackupType.Full,
     DateTimeOffset? ScheduledForUtc = null,
     string? OccurrenceKey = null,
-    int PreflightAttempts = 0);
+    int PreflightAttempts = 0,
+    string? SqlOutputFolder = null,
+    string? ServiceOutputFolder = null,
+    Guid? DirectDestinationId = null,
+    bool IsTransferRetry = false);

@@ -1,6 +1,24 @@
 [
   {
-    "package": "Azure.Core/1.47.1",
+    "package": "AWSSDK.Core/4.0.102.10",
+    "license": "Apache-2.0",
+    "licenseType": "expression",
+    "copyright": ""
+  },
+  {
+    "package": "AWSSDK.S3/4.0.104.3",
+    "license": "Apache-2.0",
+    "licenseType": "expression",
+    "copyright": ""
+  },
+  {
+    "package": "Apache.Arrow/22.1.0",
+    "license": "LICENSE.txt",
+    "licenseType": "file",
+    "copyright": "Copyright 2016-2025 The Apache Software Foundation"
+  },
+  {
+    "package": "Azure.Core/1.60.0",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -12,7 +30,19 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.Bcl.AsyncInterfaces/8.0.0",
+    "package": "Azure.Storage.Blobs/12.30.1",
+    "license": "MIT",
+    "licenseType": "expression",
+    "copyright": "© Microsoft Corporation. All rights reserved."
+  },
+  {
+    "package": "Azure.Storage.Common/12.29.0",
+    "license": "MIT",
+    "licenseType": "expression",
+    "copyright": "© Microsoft Corporation. All rights reserved."
+  },
+  {
+    "package": "Microsoft.Bcl.AsyncInterfaces/10.0.9",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -66,6 +96,12 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
+    "package": "Microsoft.Extensions.Configuration.Abstractions/10.0.9",
+    "license": "MIT",
+    "licenseType": "expression",
+    "copyright": "© Microsoft Corporation. All rights reserved."
+  },
+  {
     "package": "Microsoft.Extensions.Configuration.Binder/10.0.12",
     "license": "MIT",
     "licenseType": "expression",
@@ -114,7 +150,7 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.Extensions.DependencyInjection.Abstractions/9.0.4",
+    "package": "Microsoft.Extensions.DependencyInjection.Abstractions/10.0.9",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -132,6 +168,12 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
+    "package": "Microsoft.Extensions.Diagnostics.Abstractions/10.0.9",
+    "license": "MIT",
+    "licenseType": "expression",
+    "copyright": "© Microsoft Corporation. All rights reserved."
+  },
+  {
     "package": "Microsoft.Extensions.Diagnostics/10.0.12",
     "license": "MIT",
     "licenseType": "expression",
@@ -139,6 +181,12 @@
   },
   {
     "package": "Microsoft.Extensions.FileProviders.Abstractions/10.0.12",
+    "license": "MIT",
+    "licenseType": "expression",
+    "copyright": "© Microsoft Corporation. All rights reserved."
+  },
+  {
+    "package": "Microsoft.Extensions.FileProviders.Abstractions/10.0.9",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -162,6 +210,12 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
+    "package": "Microsoft.Extensions.Hosting.Abstractions/10.0.9",
+    "license": "MIT",
+    "licenseType": "expression",
+    "copyright": "© Microsoft Corporation. All rights reserved."
+  },
+  {
     "package": "Microsoft.Extensions.Hosting.WindowsServices/10.0.12",
     "license": "MIT",
     "licenseType": "expression",
@@ -180,7 +234,7 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.Extensions.Logging.Abstractions/9.0.4",
+    "package": "Microsoft.Extensions.Logging.Abstractions/10.0.9",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -234,7 +288,7 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.Extensions.Options/9.0.4",
+    "package": "Microsoft.Extensions.Options/10.0.9",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -246,25 +300,25 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.Extensions.Primitives/9.0.4",
+    "package": "Microsoft.Extensions.Primitives/10.0.9",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.Identity.Client.Extensions.Msal/4.73.1",
+    "package": "Microsoft.Identity.Client.Extensions.Msal/4.84.2",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.Identity.Client/4.73.1",
+    "package": "Microsoft.Identity.Client/4.84.2",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.IdentityModel.Abstractions/7.7.1",
+    "package": "Microsoft.IdentityModel.Abstractions/8.14.0",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -300,28 +354,10 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "Microsoft.NET.ILLink.Tasks/10.0.12",
-    "license": "MIT",
-    "licenseType": "expression",
-    "copyright": "© Microsoft Corporation. All rights reserved."
-  },
-  {
-    "package": "Microsoft.NETCore.App.Runtime.win-x64/10.0.12",
-    "license": "See included runtime LICENSE and notices",
-    "licenseType": "runtimepack",
-    "copyright": "See upstream notices"
-  },
-  {
     "package": "Microsoft.SqlServer.Server/1.0.0",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
-  },
-  {
-    "package": "Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.12",
-    "license": "See included runtime LICENSE and notices",
-    "licenseType": "runtimepack",
-    "copyright": "See upstream notices"
   },
   {
     "package": "SQLitePCLRaw.bundle_e_sqlite3/2.1.12",
@@ -348,7 +384,7 @@
     "copyright": "Copyright 2014-2024 SourceGear, LLC"
   },
   {
-    "package": "System.ClientModel/1.5.1",
+    "package": "System.ClientModel/1.14.0",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
@@ -366,13 +402,19 @@
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
+    "package": "System.IO.Hashing/10.0.9",
+    "license": "MIT",
+    "licenseType": "expression",
+    "copyright": "© Microsoft Corporation. All rights reserved."
+  },
+  {
     "package": "System.IdentityModel.Tokens.Jwt/7.7.1",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."
   },
   {
-    "package": "System.Memory.Data/8.0.1",
+    "package": "System.Memory.Data/10.0.9",
     "license": "MIT",
     "licenseType": "expression",
     "copyright": "© Microsoft Corporation. All rights reserved."

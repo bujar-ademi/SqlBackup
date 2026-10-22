@@ -59,11 +59,14 @@ public sealed class ManagementHandler(
                     }
 
                     stage = "SaveJob.Persistence";
-                    await jobs.SaveAsync(request.Job, cancellationToken, request.Password, request.StoragePasswords);
+                    await jobs.SaveAsync(request.Job, cancellationToken, request.Password, request.StoragePasswords, request.DestinationPasswords);
                     return new ServiceResponse(true, "Job saved.", Jobs: await jobs.ListAsync(cancellationToken));
                 case "DeleteJob" when request.Job is not null:
                     await jobs.DeleteAsync(request.Job, cancellationToken);
                     return new ServiceResponse(true, "Job configuration removed. Backup files and run history are retained.", Jobs: await jobs.ListAsync(cancellationToken));
+                case "RetryDestinations" when request.RunId.HasValue:
+                    Guid retryId = await coordinator.RetryDestinationsAsync(request.RunId.Value, cancellationToken);
+                    return new ServiceResponse(true, "Destination-only retry queued. SQL backup will not be repeated.", RunId: retryId);
                 case "RunJob" when request.JobId.HasValue && request.Job is not null && request.Configuration is not null:
                     Guid runId = await coordinator.EnqueueAsync(request.JobId.Value, cancellationToken,
                         request.Job.Revision, request.Configuration);
@@ -105,6 +108,14 @@ public sealed class ManagementHandler(
                     return new ServiceResponse(true, "Latest 20 runs loaded.", Runs: await runs.ListAsync(cancellationToken));
                 case "CheckDestination" when request.Job is not null:
                     var connection = await secrets.PrepareAsync(request.Job, request.Password, cancellationToken);
+                    if (request.Job.Destinations is not null)
+                    {
+                        DestinationValidation.ValidateAll(request.Job);
+                        var plan = await new BackupDestinationPlanner(engine).SelectAsync(request.Job, connection, cancellationToken);
+                        string selectedFolderMessage = await diagnostics.CheckAsync(connection, plan.SqlFolder, cancellationToken);
+                        return new ServiceResponse(true, selectedFolderMessage);
+                    }
+
                     JobValidation.ValidateDestination(request.Job.Destination);
                     bool useDirectDestination = await engine.CanUseDirectDestinationAsync(connection, request.Job, cancellationToken);
                     string sqlFolder = useDirectDestination ? request.Job.Destination : BackupLocations.SqlFolder(request.Job);
@@ -117,6 +128,31 @@ public sealed class ManagementHandler(
                     var storageChecks = await new StorageDiagnostics().CheckAsync(request.Job, cancellationToken, access);
                     return new ServiceResponse(storageChecks.All(check => check.Status != StageStatus.Failed),
                         string.Join("\n", storageChecks.Select(check => $"{check.Name}: {check.Message}")), Diagnostics: storageChecks);
+                case "CheckDestinations" when request.Job is not null:
+                    DestinationValidation.ValidateAll(request.Job);
+                    var destinationCredentials = await jobs.PrepareDestinationsAsync(request.Job, request.DestinationPasswords, cancellationToken);
+                    var destinationChecks = new List<DiagnosticItem>();
+                    foreach (var credential in destinationCredentials)
+                    {
+                        try
+                        {
+                            await new DestinationStorage().For(credential.Destination.Kind).CheckAccessAsync(credential, cancellationToken);
+                            destinationChecks.Add(new DiagnosticItem(credential.Destination.Name, StageStatus.Succeeded,
+                                "Access confirmed. Actual upload/write permissions and capacity are checked during delivery."));
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception exception) when (exception is not OutOfMemoryException)
+                        {
+                            destinationChecks.Add(new DiagnosticItem(credential.Destination.Name, StageStatus.Failed,
+                                DestinationFailure.Describe(exception)));
+                        }
+                    }
+
+                    return new ServiceResponse(destinationChecks.All(item => item.Status == StageStatus.Succeeded),
+                        string.Join("\n", destinationChecks.Select(item => $"{item.Name}: {item.Message}")), Diagnostics: destinationChecks.ToArray());
                 default:
                     return new ServiceResponse(false, "Unsupported management operation.");
             }

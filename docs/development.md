@@ -1,5 +1,7 @@
 # Development
 
+Destination delivery checks can also run in isolation with `dotnet run --project tests/SqlBackup.Tests --no-build -- --destinations`. They use synthetic files and simulated cloud providers, including transfer retries, credential isolation, and dependency-aware cloud/mixed-history retention. No real Azure/S3 account is contacted. These checks also run in the default suite.
+
 ## Build
 
 Use Windows with .NET SDK 10.0.401 or a later patch in that SDK band, as pinned by global.json. WPF requires Windows. Open SqlBackup.slnx in a compatible Visual Studio version or run:

@@ -12,7 +12,7 @@ public sealed class RunStore(ConfigurationStore store)
     }
 
     public async Task AddAsync(BackupRun run, byte[]? protectedPassword, CancellationToken cancellationToken,
-        StorageAccessSnapshot? storageAccess = null)
+        StorageAccessSnapshot? storageAccess = null, DestinationCredentialSnapshot[]? destinationAccess = null)
     {
         await using var connection = new SqliteConnection(store.ConnectionString);
         await connection.OpenAsync(cancellationToken);
@@ -35,6 +35,11 @@ public sealed class RunStore(ConfigurationStore store)
         command.Parameters.Clear();
         command.Parameters.AddWithValue("$id", run.Id.ToString());
         command.Parameters.AddWithValue("$access", JsonSerializer.Serialize(storageAccess ?? new StorageAccessSnapshot()));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        command.CommandText = "INSERT INTO RunDestinationSecrets (RunId, Payload) VALUES ($id, $destinations);";
+        command.Parameters.Clear();
+        command.Parameters.AddWithValue("$id", run.Id.ToString());
+        command.Parameters.AddWithValue("$destinations", JsonSerializer.Serialize(destinationAccess ?? []));
         await command.ExecuteNonQueryAsync(cancellationToken);
         await RunEventStore.AppendAsync(connection, transaction, null, run, cancellationToken);
         transaction.Commit();
@@ -168,6 +173,9 @@ public sealed class RunStore(ConfigurationStore store)
                 Backup = result.Backup == StageStatus.Running ? StageStatus.Unknown : result.Backup,
                 Verification = result.Verification == StageStatus.Running ? StageStatus.Unknown : result.Verification,
                 StagingCleanup = result.StagingCleanup == StageStatus.Running ? StageStatus.Unknown : result.StagingCleanup,
+                DestinationTransfers = result.DestinationTransfers?.Select(transfer => transfer.Status is StageStatus.Running or StageStatus.Pending
+                    ? transfer with { Status = StageStatus.Unknown, Message = "Service stopped during transfer. Remote completion has not been confirmed." }
+                    : transfer).ToArray(),
                 Copies = result.Copies?.Select(copy => copy.Status is StageStatus.Running or StageStatus.Pending
                     ? copy with { Status = StageStatus.Unknown, Message = "Service stopped during transfer. Partial output is not a completed copy." }
                     : copy).ToArray(),

@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private BackupSchedule? draftSchedule;
     private StoragePolicy? draftStorage;
     private string? draftTemporaryFolder;
+    private BackupDestination[]? draftDestinations;
+    private DestinationPassword[] pendingDestinationPasswords = [];
     private StoragePasswords pendingStoragePasswords = new();
     private bool busy;
     private bool connected;
@@ -168,6 +170,12 @@ public partial class MainWindow : Window
             DestinationSummary.Text += "\nSecondary: " + draftStorage.SecondaryFolder;
         }
 
+        if (draftDestinations is not null)
+        {
+            DestinationSummary.Text = draftDestinations.Length == 0 ? "No destinations configured"
+                : string.Join("\n", draftDestinations.Select(item => $"{item.Name} · {item.Kind} · {item.Location}"));
+        }
+
         UpdateScheduleSummary();
     }
 
@@ -235,6 +243,8 @@ public partial class MainWindow : Window
         historyOffset = 0;
         draftStorage = job?.Storage;
         draftTemporaryFolder = job?.TemporaryFolder;
+        draftDestinations = job?.Destinations?.ToArray();
+        pendingDestinationPasswords = [];
         pendingStoragePasswords = new StoragePasswords();
         JobEnabled.IsChecked = job?.Enabled ?? true;
         Checksum.IsChecked = job?.Checksum ?? true;
@@ -266,6 +276,7 @@ public partial class MainWindow : Window
             Schedule = draftSchedule,
             Storage = draftStorage,
             TemporaryFolder = draftTemporaryFolder,
+            Destinations = draftDestinations,
             Notifications = new JobNotificationPolicy(NotifySuccess.IsChecked == true, NotifyFailure.IsChecked == true)
         };
     }
@@ -286,6 +297,8 @@ public partial class MainWindow : Window
             || edited.TemporaryFolder != editingJob.TemporaryFolder || pendingStoragePasswords != new StoragePasswords()
             || (edited.Notifications ?? new JobNotificationPolicy()) != (editingJob.Notifications ?? new JobNotificationPolicy())
             || pendingPassword.Length > 0
+            || pendingDestinationPasswords.Length > 0
+            || !(edited.Destinations ?? []).SequenceEqual(editingJob.Destinations ?? [])
             || !edited.Databases.Order().SequenceEqual(editingJob.Databases.Order());
     }
 
@@ -308,7 +321,7 @@ public partial class MainWindow : Window
         updatingSelection = false;
         ShowJob(new BackupJob(Guid.NewGuid(), "New backup job", [], string.Empty,
             Connection: new ConnectionConfiguration("SQL Server", string.Empty, true, null),
-            TemporaryFolder: BackupLocations.DefaultTemporaryFolder));
+            TemporaryFolder: BackupLocations.DefaultTemporaryFolder, Destinations: []));
         JobName.Focus();
         JobName.SelectAll();
     }
@@ -349,7 +362,7 @@ public partial class MainWindow : Window
             }
 
             var response = await SendCheckedAsync(new ServiceRequest("SaveJob", Password: pendingPassword, Job: job,
-                StoragePasswords: pendingStoragePasswords));
+                StoragePasswords: pendingStoragePasswords, DestinationPasswords: pendingDestinationPasswords));
             SetJobs(response.Jobs ?? [], job.Id);
             Result.Text = response.Message;
         }, showValidation: true);
@@ -387,6 +400,11 @@ public partial class MainWindow : Window
 
         string mode = editingJob.CopyOnly ? "Copy-only Full" : "Regular Full — changes the Differential base";
         string review = $"{mode}\nServer: {editingJob.Connection?.Server}\nDatabases: {string.Join(", ", editingJob.Databases)}\nFinal folder: {editingJob.Destination}";
+        if (editingJob.Destinations is not null)
+        {
+            review = $"{mode}\nServer: {editingJob.Connection?.Server}\nDatabases: {string.Join(", ", editingJob.Databases)}\nDestinations:\n"
+                + string.Join("\n", editingJob.Destinations.Select(item => $"{item.Name} · {item.Kind} · {item.Location}"));
+        }
         if (editingJob.TemporaryFolder is not null)
         {
             review += "\nTemporary SQL folder: " + editingJob.TemporaryFolder;
@@ -497,15 +515,22 @@ public partial class MainWindow : Window
 
     private void AddDestination_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu();
-        var local = new MenuItem { Header = "Local / Network Folder / NAS" };
-        local.Click += Destination_Click;
-        menu.Items.Add(local);
+        if (editingJob is null || busy)
+        {
+            return;
+        }
+
+        var menu = DestinationKindMenu.Create(kind => OpenDestinationDialog(kind));
         menu.PlacementTarget = sender as UIElement;
         menu.IsOpen = true;
     }
 
     private void Destination_Click(object sender, RoutedEventArgs e)
+    {
+        OpenDestinationDialog();
+    }
+
+    private void OpenDestinationDialog(DestinationKind? newDestinationKind = null)
     {
         if (editingJob is null || busy)
         {
@@ -515,13 +540,16 @@ public partial class MainWindow : Window
         PausePolling();
         try
         {
-            var dialog = new DestinationDialog(ReadJob(), pendingPassword, SendCheckedAsync, pendingStoragePasswords) { Owner = this };
-            if (dialog.ShowDialog() == true && dialog.SelectedDestination is { } destination)
+            var dialog = new JobDestinationsDialog(ReadJob(), pendingPassword, SendCheckedAsync,
+                pendingDestinationPasswords, pendingStoragePasswords, newDestinationKind)
+            { Owner = this };
+            if (dialog.ShowDialog() == true && dialog.SelectedJob is { } configured)
             {
-                draftDestination = destination;
-                draftStorage = dialog.SelectedStorage;
-                draftTemporaryFolder = dialog.SelectedTemporaryFolder;
-                pendingStoragePasswords = dialog.SelectedPasswords;
+                draftDestinations = configured.Destinations;
+                draftStorage = configured.Storage;
+                draftTemporaryFolder = configured.TemporaryFolder;
+                pendingDestinationPasswords = dialog.SelectedPasswords;
+                pendingStoragePasswords = dialog.SelectedSourcePasswords;
                 UpdateSummaries();
                 Result.Text = "Destination applied to this job. Save Job to keep your changes.";
             }

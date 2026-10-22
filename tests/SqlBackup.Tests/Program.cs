@@ -29,6 +29,12 @@ if (args.Length == 2 && args[0] == "--sql-instance")
     return;
 }
 
+if (args.Length == 1 && args[0] == "--destinations")
+{
+    await DestinationChecks.RunAsync();
+    return;
+}
+
 if (args.Length == 1 && args[0] == "--automatic-storage")
 {
     await AutomaticStorageChecks.RunAsync();
@@ -85,6 +91,7 @@ await Phase2Checks.RunAsync();
 await ScheduleChecks.RunAsync();
 await StorageChecks.RunAsync();
 await AutomaticStorageChecks.RunAsync();
+await DestinationChecks.RunAsync();
 await StagingChecks.RunAsync();
 await SetupChecks.RunAsync();
 await OperationsChecks.RunAsync();
