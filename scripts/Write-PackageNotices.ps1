@@ -57,7 +57,9 @@ foreach ($project in @('Desktop', 'Service', 'Setup'))
         {
             throw "New license review required for $($entry.Key)"
         }
-        if ($license.type -eq 'file' -and $entry.Key -notlike 'Microsoft.Data.SqlClient.SNI.runtime/*')
+        $isReviewedArrowLicense = $entry.Key -eq 'Apache.Arrow/22.1.0' -and $license.InnerText -eq 'LICENSE.txt'
+        $isNativeSqlClientLicense = $entry.Key -like 'Microsoft.Data.SqlClient.SNI.runtime/*'
+        if ($license.type -eq 'file' -and -not $isNativeSqlClientLicense -and -not $isReviewedArrowLicense)
         {
             throw "New file license review required for $($entry.Key)"
         }
@@ -72,6 +74,17 @@ foreach ($project in @('Desktop', 'Service', 'Setup'))
             {
                 throw 'Package license path escapes its package directory.'
             }
+            if ($isReviewedArrowLicense)
+            {
+                # Preserve the reviewed Apache-2.0 text, including the bundled FlatBuffers attribution.
+                $reviewedHash = 'F49CC7BE44C8D4B6EFFFED6AC00026F2FF2146310F040350B50BE30ED3F9C570'
+                $actualHash = (Get-FileHash -LiteralPath $licensePath -Algorithm SHA256).Hash
+                if ($actualHash -ne $reviewedHash)
+                {
+                    throw "Reviewed license contents changed for $($entry.Key). Review the updated license before packaging."
+                }
+            }
+
             Copy-Item -LiteralPath $licensePath -Destination $packageOutput
         }
 

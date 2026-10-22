@@ -9,6 +9,7 @@ The SqlBackup source is MIT licensed. Bundled dependencies retain their own lice
 | Microsoft.Data.Sqlite | MIT |
 | Azure.Storage.Blobs and Azure.Storage.Common | MIT; retain Microsoft package notices |
 | AWSSDK.S3 and AWSSDK.Core | [Apache 2.0](licenses/Apache-2.0.txt); retain Amazon package notices |
+| Apache.Arrow 22.1.0 | Apache 2.0; retain the package's LICENSE.txt, including its bundled FlatBuffers attribution |
 | SQLitePCLRaw | [Apache 2.0](licenses/Apache-2.0.txt), Copyright SourceGear, LLC |
 | SQLite native engine | Public domain; retain notices supplied by its package |
 | Self-contained .NET and Windows Desktop runtimes | Their supplied LICENSE and ThirdPartyNotices files, including notices for embedded components |

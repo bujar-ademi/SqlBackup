@@ -38,6 +38,8 @@ SqlLocalDB delete AbaSqlBackupPhase2_ManualTest
 
 ## Packaging
 
+File-based licenses require explicit review in Write-PackageNotices.ps1. Apache.Arrow 22.1.0 is approved only with its reviewed LICENSE.txt SHA-256; packaging includes that complete file and its FlatBuffers attribution. A new Arrow version or changed license text must be reviewed again.
+
 Install Inno Setup 7 and use PowerShell 7 for packaging scripts:
 
 ```powershell
