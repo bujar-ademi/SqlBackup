@@ -31,6 +31,7 @@ public partial class DestinationDialog : Window
         SecondaryDays.Text = (job.Storage?.SecondaryRetentionDays ?? 0).ToString();
         ServiceSource.Text = job.Storage?.ServiceSourceFolder ?? string.Empty;
         TemporaryFolder.Text = job.TemporaryFolder ?? BackupLocations.DefaultTemporaryFolder;
+        TemporaryFolder.IsEnabled = job.TemporaryFolder is not null;
         DestinationUser.Text = job.Storage?.DestinationUserName ?? string.Empty;
         SecondaryUser.Text = job.Storage?.SecondaryUserName ?? string.Empty;
         SourceUser.Text = job.Storage?.SourceUserName ?? string.Empty;
@@ -62,7 +63,9 @@ public partial class DestinationDialog : Window
         var draft = job with
         {
             Destination = FolderPath.Text.Trim(),
-            TemporaryFolder = BackupLocations.NormalizeTemporaryFolder(TemporaryFolder.Text),
+            TemporaryFolder = job.TemporaryFolder is null
+                ? null
+                : BackupLocations.NormalizeTemporaryFolder(TemporaryFolder.Text),
             Storage = ReadStorage()
         };
         JobValidation.ValidateDestination(draft.Destination);

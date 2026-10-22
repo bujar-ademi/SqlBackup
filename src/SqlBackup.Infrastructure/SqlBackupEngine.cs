@@ -8,6 +8,48 @@ namespace SqlBackup.Infrastructure;
 
 public sealed class SqlBackupEngine : ISqlBackupEngine
 {
+    public async Task<bool> CanUseDirectDestinationAsync(
+        ConnectionSnapshot snapshot, BackupJob job, CancellationToken cancellationToken)
+    {
+        if (!DirectBackupPolicy.IsCandidate(job))
+        {
+            return false;
+        }
+
+        string root = Path.GetPathRoot(job.Destination)!;
+        if (new DriveInfo(root).DriveType != DriveType.Fixed)
+        {
+            return false;
+        }
+
+        ArtifactFiles.EnsureNoLinks(job.Destination);
+
+        await using var connection = CreateConnection(snapshot);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandTimeout = 5;
+        command.CommandText = """
+            SELECT CONVERT(nvarchar(128), SERVERPROPERTY('MachineName')),
+                   CONVERT(nvarchar(128), SERVERPROPERTY('ComputerNamePhysicalNetBIOS')),
+                   CONVERT(int, SERVERPROPERTY('IsClustered')),
+                   file_is_a_directory
+            FROM sys.dm_os_file_exists(@path);
+            """;
+        command.Parameters.Add("@path", SqlDbType.NVarChar, 1024).Value = job.Destination;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return false;
+        }
+
+        return DirectBackupPolicy.MatchesLocalServer(
+            reader.IsDBNull(0) ? null : reader.GetString(0),
+            reader.IsDBNull(1) ? null : reader.GetString(1),
+            reader.IsDBNull(2) || reader.GetInt32(2) != 0,
+            !reader.IsDBNull(3) && Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture) == 1,
+            Environment.MachineName);
+    }
+
     public async Task<ServerInspection> InspectAsync(ConnectionSnapshot snapshot, CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection(snapshot);

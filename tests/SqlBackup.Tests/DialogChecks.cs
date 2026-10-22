@@ -71,11 +71,15 @@ public static class DialogChecks
         var destinationTest = destination.TestDestinationAsync();
         Check(destinationTest.IsCompletedSuccessfully && request?.Operation == "CheckStorage"
             && request.Job?.Id == first.Id && request.Job.Destination == @"\\fictional-nas\sql-backups"
-            && request.Job.TemporaryFolder == BackupLocations.DefaultTemporaryFolder
+            && request.Job.TemporaryFolder is null
             && first.Destination == @"D:\SqlBackups" && destination.SelectedDestination is null,
             "Destination Test uses the job's draft folder and does not apply or persist it");
         Check(destination.TryApplyDestination() && destination.SelectedDestination == @"\\fictional-nas\sql-backups",
             "Destination Save & Close accepts a valid UNC folder");
+        destination.Close();
+        destination = new DestinationDialog(first with { TemporaryFolder = BackupLocations.DefaultTemporaryFolder }, string.Empty,
+            submitted => Task.FromResult(new ServiceResponse(true, "Visible")));
+        ((TextBox)destination.FindName("FolderPath")).Text = @"\\fictional-nas\sql-backups";
         ((TextBox)destination.FindName("TemporaryFolder")).Text = @"C:\AbaSqlBackup\Staging";
         ((TextBox)destination.FindName("DestinationUser")).Text = @"fictional-nas\fixture";
         ((PasswordBox)destination.FindName("DestinationPassword")).Password = "FictionalNasPassword";
@@ -101,7 +105,7 @@ public static class DialogChecks
         unavailable.Close();
 
         var pendingCheck = new TaskCompletionSource<ServiceResponse>();
-        var pendingDestination = new DestinationDialog(first, string.Empty, submitted =>
+        var pendingDestination = new DestinationDialog(first with { TemporaryFolder = BackupLocations.DefaultTemporaryFolder }, string.Empty, submitted =>
         {
             request = submitted;
             return pendingCheck.Task;

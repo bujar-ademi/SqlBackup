@@ -14,14 +14,14 @@
         <Border Background="White" Padding="20,14">
             <StackPanel>
                 <TextBlock Text="Local / Network Folder / NAS" FontSize="20" FontWeight="SemiBold" Foreground="#243E56" />
-                <TextBlock Text="Temporary SQL backup folder and final storage for this job" Foreground="#74899D" Margin="0,5,0,0" />
+                <TextBlock Text="SQL automatically uses the final folder when local direct backup is available" Foreground="#74899D" Margin="0,5,0,0" />
             </StackPanel>
         </Border>
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel x:Name="Editor" Margin="20,16">
-                <TextBlock Text="Temporary folder (on the SQL Server)" FontWeight="SemiBold" Foreground="#36526B" />
+                <TextBlock Text="Temporary folder (fallback on the SQL Server)" FontWeight="SemiBold" Foreground="#36526B" />
                 <TextBox x:Name="TemporaryFolder" Padding="7,5" MaxLength="512" Margin="0,8,0,6" TextChanged="TemporaryFolder_TextChanged" />
-                <TextBlock Text="Default: %ProgramData%\SqlBackup\Temp on this service host. For remote SQL choose a folder on that SQL server. SQL visibility is checked before Save &amp; Close; its service account needs backup read/write access." TextWrapping="Wrap" Foreground="#647D93" />
+                <TextBlock Text="Before each run, the service checks whether SQL Server is on this computer and can see the local final folder. If confirmed, SQL writes directly there. Otherwise this temporary folder is used. Default: %ProgramData%\SqlBackup\Temp on this service host. For remote SQL choose a folder on that SQL server. SQL visibility is checked before Save &amp; Close; its service account needs backup read/write access." TextWrapping="Wrap" Foreground="#647D93" />
                 <TextBlock x:Name="TemporaryFolderStatus" TextWrapping="Wrap" Foreground="#A14B17" Margin="0,6,0,0" />
                 <TextBlock Text="Final backup folder — Local / Network / NAS" FontWeight="SemiBold" Foreground="#36526B" Margin="0,16,0,0" />
                 <DockPanel Margin="0,8,0,10">
@@ -31,7 +31,7 @@
                 <TextBlock Text="For a network folder or NAS, use a UNC path such as \\server\share\backups." TextWrapping="Wrap" Foreground="#74899D" FontSize="12" />
                 <Expander Header="Folder access" IsExpanded="False" Margin="0,18,0,0" Foreground="#365C7C">
                     <StackPanel Margin="18,12,0,0">
-                        <TextBlock Text="SQL Server writes only to the temporary folder using its SQL service account. AbaSqlBackup reads that backup and writes to the final destinations." TextWrapping="Wrap" Foreground="#647D93" />
+                        <TextBlock Text="SQL Server writes directly to a confirmed local final folder, or uses temporary staging for other destinations. SQL uses its own service account; the folder credentials below are only for AbaSqlBackup." TextWrapping="Wrap" Foreground="#647D93" />
                         <TextBlock Text="For remote SQL, set the service-visible source below to an authorized UNC share exposing the same temporary files. Browse selects final folders on this computer." TextWrapping="Wrap" Foreground="#647D93" Margin="0,10,0,0" />
                     </StackPanel>
                 </Expander>

@@ -105,7 +105,10 @@ public sealed class ManagementHandler(
                     return new ServiceResponse(true, "Latest 20 runs loaded.", Runs: await runs.ListAsync(cancellationToken));
                 case "CheckDestination" when request.Job is not null:
                     var connection = await secrets.PrepareAsync(request.Job, request.Password, cancellationToken);
-                    string message = await diagnostics.CheckAsync(connection, BackupLocations.SqlFolder(request.Job), cancellationToken);
+                    JobValidation.ValidateDestination(request.Job.Destination);
+                    bool useDirectDestination = await engine.CanUseDirectDestinationAsync(connection, request.Job, cancellationToken);
+                    string sqlFolder = useDirectDestination ? request.Job.Destination : BackupLocations.SqlFolder(request.Job);
+                    string message = await diagnostics.CheckAsync(connection, sqlFolder, cancellationToken);
                     return new ServiceResponse(true, message);
                 case "CheckStorage" when request.Job is not null:
                     JobValidation.ValidateStorage(request.Job.Destination, request.Job.Storage);

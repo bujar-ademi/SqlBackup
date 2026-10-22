@@ -5,10 +5,25 @@ namespace SqlBackup.Tests;
 
 public sealed class SimulatedSqlEngine : ISqlBackupEngine
 {
+    public bool DirectDestinationAvailable { get; set; }
+    public Exception? DirectDestinationFailure { get; set; }
+
+    public Task<bool> CanUseDirectDestinationAsync(ConnectionSnapshot connection, BackupJob job, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (DirectDestinationFailure is not null)
+        {
+            throw DirectDestinationFailure;
+        }
+
+        return Task.FromResult(DirectDestinationAvailable);
+    }
+
     public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public bool BlockExecution { get; set; }
     public bool FailVerification { get; set; }
+    public bool FailBackup { get; set; }
     public bool WriteArtifact { get; set; }
     public bool SupportsCompression { get; set; } = true;
     public int ExecutionCount { get; private set; }
@@ -51,6 +66,11 @@ public sealed class SimulatedSqlEngine : ISqlBackupEngine
         if (BlockExecution)
         {
             await Release.Task.WaitAsync(cancellationToken);
+        }
+
+        if (FailBackup)
+        {
+            return result with { Backup = StageStatus.Failed, Verification = StageStatus.Skipped };
         }
 
         if (WriteArtifact)

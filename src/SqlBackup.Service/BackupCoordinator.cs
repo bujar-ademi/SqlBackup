@@ -124,11 +124,35 @@ public sealed class BackupCoordinator(
                 throw new ArgumentException("This job's SQL connection changed. Reload and review the server before running.");
             }
 
+            bool directDestinationSelected = false;
+            if (DirectBackupPolicy.IsCandidate(job))
+            {
+                try
+                {
+                    directDestinationSelected = await engine.CanUseDirectDestinationAsync(connection, job, cancellationToken);
+                }
+                catch (Exception exception) when (exception is Microsoft.Data.SqlClient.SqlException
+                    or IOException or UnauthorizedAccessException or TimeoutException)
+                {
+                    logger.LogWarning("Direct destination inspection was unavailable; retaining staging. EventCode={EventCode}",
+                        "DirectDestinationInspectionUnavailable");
+                }
+            }
+
+            var storageAccess = await new StorageSecrets(configurationStore).PrepareAsync(job, null, cancellationToken);
+            if (directDestinationSelected)
+            {
+                job = job with { TemporaryFolder = null };
+                storageAccess = storageAccess with { Source = null };
+            }
+
             var run = new BackupRun(Guid.NewGuid(), job, connection.Configuration, DateTimeOffset.UtcNow,
                 RunStatus.Queued,
                 job.Databases.Select(database => new DatabaseBackupResult(database,
                     StageStatus.Pending, job.Verify ? StageStatus.Pending : StageStatus.Skipped)).ToArray(),
-                $"Queued for {type} backup.", Type: type, ScheduledForUtc: scheduledForUtc, OccurrenceKey: occurrenceKey);
+                directDestinationSelected
+                    ? $"Queued for {type} backup. SQL Server will write directly to the local final folder; staging is unnecessary."
+                    : $"Queued for {type} backup.", Type: type, ScheduledForUtc: scheduledForUtc, OccurrenceKey: occurrenceKey);
 
             // One reader serializes all executions, preventing database overlap across jobs in this service.
             if (activeJobs.Count >= 16)
@@ -136,7 +160,6 @@ public sealed class BackupCoordinator(
                 throw new ArgumentException("The execution queue is full. Wait for an active job to finish.");
             }
 
-            var storageAccess = await new StorageSecrets(configurationStore).PrepareAsync(job, null, cancellationToken);
             await runs.AddAsync(run, connection.ProtectedPassword, cancellationToken, storageAccess);
             activeJobs.Add(jobId);
             if (!queue.Writer.TryWrite(run))
