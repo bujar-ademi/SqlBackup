@@ -87,6 +87,7 @@ public partial class JobDestinationsDialog : Window
         DestinationName.Text = destination.Name;
         Kind.SelectedIndex = (int)destination.Kind;
         Location.Text = destination.Location;
+        FastCopy.IsChecked = destination.FastCopy;
         Prefix.Text = destination.Prefix;
         Region.Text = destination.Region ?? string.Empty;
         UserName.Text = destination.UserName ?? string.Empty;
@@ -108,6 +109,7 @@ public partial class JobDestinationsDialog : Window
     private void RefreshFields()
     {
         var kind = (DestinationKind)Math.Max(0, Kind.SelectedIndex);
+        FastCopy.Visibility = kind == DestinationKind.Folder ? Visibility.Visible : Visibility.Collapsed;
         CloudFields.Visibility = kind == DestinationKind.Folder ? Visibility.Collapsed : Visibility.Visible;
         RegionFields.Visibility = kind == DestinationKind.AmazonS3 ? Visibility.Visible : Visibility.Collapsed;
         SessionFields.Visibility = RegionFields.Visibility;
@@ -145,7 +147,8 @@ public partial class JobDestinationsDialog : Window
             var destination = new BackupDestination(editingId.Value, DestinationName.Text.Trim(), kind,
                 Location.Text.Trim().TrimEnd('/'), kind == DestinationKind.Folder ? string.Empty : Prefix.Text.Trim().Trim('/'),
                 kind == DestinationKind.AmazonS3 ? Region.Text.Trim() : null,
-                kind == DestinationKind.AzureBlob ? null : Blank(UserName.Text.Trim()), days);
+                kind == DestinationKind.AzureBlob ? null : Blank(UserName.Text.Trim()), days,
+                FastCopy: kind == DestinationKind.Folder && FastCopy.IsChecked == true);
             DestinationValidation.Validate(destination);
             var supplied = new DestinationPassword(destination.Id, Blank(Secret.Password), Blank(SessionToken.Password));
             passwords[destination.Id] = supplied;

@@ -20,7 +20,7 @@ The main workspace shows the next estimated execution and time zone. The gear op
 
 Scheduled Full backups always establish a regular Differential base. The copy-only option applies to manual Full. Save checks enabled backup types against selected database permissions/recovery models; execution checks actual base/Log prerequisites again. `master` supports only Full. No recovery model is changed automatically.
 
-All work is serialized in this service and SQL session application locks protect databases across cooperating hosts. There is no automatic backup-command retry. Only read-only preflight inspection retries recognized transient connection/timeout failures, for at most three attempts with one/two-second delays. Runs interrupted by shutdown remain Interrupted with uncertain stages visible.
+Up to three runs execute in parallel. Backup runs with overlapping databases on the same configured SQL server keep their queue order. SQL session application locks protect databases across cooperating hosts. Only read-only preflight inspection retries recognized transient connection/timeout failures, for at most three attempts with one/two-second delays. Runs interrupted by shutdown remain Interrupted with uncertain stages visible.
 
 ## Destination scope
 

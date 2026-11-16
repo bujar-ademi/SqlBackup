@@ -8,4 +8,5 @@ public sealed record BackupDestination(
     string Prefix = "",
     string? Region = null,
     string? UserName = null,
-    int RetentionDays = 0);
+    int RetentionDays = 0,
+    bool FastCopy = false);

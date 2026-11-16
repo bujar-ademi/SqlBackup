@@ -2,6 +2,8 @@ namespace SqlBackup.Infrastructure;
 
 public sealed class FolderDestinationStorage : IDestinationStorage
 {
+    private const int CopyBufferSize = 1024 * 1024;
+
     public async Task CheckAccessAsync(DestinationCredentialSnapshot access, CancellationToken cancellationToken)
     {
         DestinationSecrets.Validate(access.Destination, access);
@@ -25,6 +27,7 @@ public sealed class FolderDestinationStorage : IDestinationStorage
     {
         return await ShareAccess.RunAsync(Credential(access), async () =>
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string destination = ArtifactFiles.Resolve(access.Destination.Location, objectKey);
             if (File.Exists(destination))
             {
@@ -34,17 +37,30 @@ public sealed class FolderDestinationStorage : IDestinationStorage
             }
 
             string partial = destination + "." + Guid.NewGuid().ToString("N") + ".partial";
+            bool fastCopy = access.Destination.FastCopy;
+            var options = fastCopy ? FileOptions.Asynchronous : FileOptions.Asynchronous | FileOptions.WriteThrough;
             await using (var output = new FileStream(partial, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                1024 * 1024, FileOptions.Asynchronous | FileOptions.WriteThrough))
+                CopyBufferSize, options))
             {
-                await source.CopyToAsync(output, cancellationToken);
+                if (fastCopy)
+                {
+                    await source.CopyToAsync(output, CopyBufferSize, cancellationToken);
+                }
+                else
+                {
+                    await source.CopyToAsync(output, cancellationToken);
+                }
+
                 await output.FlushAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                // Buffered copies still require a durable flush before verification and promotion.
                 output.Flush(true);
             }
 
             var receipt = new StorageObjectReceipt(partial, source.Length, sha256);
             await VerifyFileAsync(receipt, cancellationToken);
             ArtifactFiles.EnsureNoLinks(destination);
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(partial, destination, overwrite: false);
             return receipt with { Path = destination };
         });

@@ -15,9 +15,13 @@ public sealed class BackupCoordinator(
     ILogger<BackupCoordinator> logger,
     DestinationStorage? destinationStorage = null) : BackgroundService
 {
-    private readonly Channel<BackupRun> queue = Channel.CreateBounded<BackupRun>(16);
+    private const int MaxActiveJobs = 16;
+    private const int MaxParallelRuns = 3;
+    private readonly Channel<BackupRun> queue = Channel.CreateBounded<BackupRun>(MaxActiveJobs);
     private readonly SemaphoreSlim enqueueLock = new(1, 1);
     private readonly HashSet<Guid> activeJobs = [];
+    private readonly object executionLock = new();
+    private readonly Dictionary<Guid, ActiveBackupExecution> executingRuns = [];
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public bool IsMaintenanceActive => File.Exists(Path.Combine(configurationStore.DirectoryPath, "setup-maintenance.json"));
@@ -182,8 +186,7 @@ public sealed class BackupCoordinator(
                 SqlOutputFolder: destinationPlan?.SqlFolder, ServiceOutputFolder: destinationPlan?.ServiceFolder,
                 DirectDestinationId: destinationPlan?.DirectDestinationId);
 
-            // One reader serializes all executions, preventing database overlap across jobs in this service.
-            if (activeJobs.Count >= 16)
+            if (activeJobs.Count >= MaxActiveJobs)
             {
                 throw new ArgumentException("The execution queue is full. Wait for an active job to finish.");
             }
@@ -217,27 +220,7 @@ public sealed class BackupCoordinator(
             await configurationStore.InitializeAsync(stoppingToken);
             await runs.ReconcileInterruptedAsync(stoppingToken);
             ready.TrySetResult();
-            await foreach (var run in queue.Reader.ReadAllAsync(stoppingToken))
-            {
-                try
-                {
-                    await ExecutionGate.Instance.WaitAsync(stoppingToken);
-                    try
-                    {
-                        await ExecuteRunAsync(run, stoppingToken);
-                    }
-                    finally
-                    {
-                        ExecutionGate.Instance.Release();
-                    }
-                }
-                finally
-                {
-                    await enqueueLock.WaitAsync(CancellationToken.None);
-                    activeJobs.Remove(run.Job.Id);
-                    enqueueLock.Release();
-                }
-            }
+            await DispatchAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -256,16 +239,164 @@ public sealed class BackupCoordinator(
         }
     }
 
-    private async Task ExecuteRunAsync(BackupRun queued, CancellationToken cancellationToken)
+    public void RequestStop(Guid runId)
+    {
+        lock (executionLock)
+        {
+            if (!executingRuns.TryGetValue(runId, out var execution))
+            {
+                throw new ArgumentException("This run is no longer active. Refresh the job log.");
+            }
+
+            execution.RequestStop();
+        }
+    }
+
+    public bool IsStopRequested(Guid runId)
+    {
+        lock (executionLock)
+        {
+            return executingRuns.TryGetValue(runId, out var execution) && execution.StopRequest is not null;
+        }
+    }
+
+    private async Task DispatchAsync(CancellationToken stoppingToken)
+    {
+        using var dispatcher = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var pending = new List<BackupRun>();
+        var running = new Dictionary<BackupRun, Task>();
+        Task<bool>? workAvailable = null;
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                foreach (var completed in running.Where(item => item.Value.IsCompleted).ToArray())
+                {
+                    running.Remove(completed.Key);
+                    await completed.Value;
+                }
+
+                while (queue.Reader.TryRead(out var queued))
+                {
+                    pending.Add(queued);
+                }
+
+                for (int index = 0; index < pending.Count && running.Count < MaxParallelRuns;)
+                {
+                    var candidate = pending[index];
+                    if (running.Keys.Any(active => SharesDatabase(active, candidate))
+                        || pending.Take(index).Any(earlier => SharesDatabase(earlier, candidate)))
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    pending.RemoveAt(index);
+                    running.Add(candidate, ExecuteActiveRunAsync(candidate, dispatcher.Token));
+                }
+
+                workAvailable ??= queue.Reader.WaitToReadAsync(dispatcher.Token).AsTask();
+                var changed = await Task.WhenAny(running.Values.Append(workAvailable));
+                if (changed == workAvailable)
+                {
+                    if (!await workAvailable)
+                    {
+                        break;
+                    }
+
+                    workAvailable = null;
+                }
+            }
+        }
+        finally
+        {
+            try
+            {
+                await dispatcher.CancelAsync();
+            }
+            finally
+            {
+                await Task.WhenAll(running.Values);
+            }
+        }
+    }
+
+    private static bool SharesDatabase(BackupRun first, BackupRun second)
+    {
+        return !first.IsTransferRetry && !second.IsTransferRetry
+            && string.Equals(first.Connection.Server.Trim(), second.Connection.Server.Trim(), StringComparison.OrdinalIgnoreCase)
+            && first.Job.Databases.Intersect(second.Job.Databases, StringComparer.OrdinalIgnoreCase).Any();
+    }
+
+    private async Task ExecuteActiveRunAsync(BackupRun run, CancellationToken stoppingToken)
+    {
+        bool entered = false;
+        using var execution = new ActiveBackupExecution();
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, execution.StopToken);
+        try
+        {
+            await ExecutionGate.EnterBackupAsync(stoppingToken);
+            entered = true;
+            lock (executionLock)
+            {
+                executingRuns.Add(run.Id, execution);
+            }
+
+            await ExecuteRunAsync(run, execution.StopToken, operation.Token);
+        }
+        catch (OperationCanceledException) when (!entered && stoppingToken.IsCancellationRequested)
+        {
+            // The run remained queued and will be reconciled on service restart.
+        }
+        finally
+        {
+            lock (executionLock)
+            {
+                executingRuns.Remove(run.Id);
+            }
+
+            try
+            {
+                if (execution.StopRequest is { } request)
+                {
+                    await request;
+                }
+            }
+            catch (AggregateException exception)
+            {
+                logger.LogWarning("A stop callback failed. EventCode={EventCode} ErrorType={ErrorType}",
+                    "StopCallbackFailed", exception.GetType().Name);
+            }
+            finally
+            {
+                if (entered)
+                {
+                    ExecutionGate.ExitBackup();
+                }
+
+                await enqueueLock.WaitAsync(CancellationToken.None);
+                try
+                {
+                    activeJobs.Remove(run.Job.Id);
+                }
+                finally
+                {
+                    enqueueLock.Release();
+                }
+            }
+        }
+    }
+
+    private async Task ExecuteRunAsync(BackupRun queued, CancellationToken stopToken, CancellationToken cancellationToken)
     {
         if (queued.IsTransferRetry)
         {
-            await ExecuteTransferRetryAsync(queued, cancellationToken);
+            await ExecuteTransferRetryAsync(queued, stopToken, cancellationToken);
             return;
         }
 
         var run = queued with { Status = RunStatus.Running, StartedUtc = DateTimeOffset.UtcNow, Message = "Checking SQL prerequisites." };
-        await runs.UpdateAsync(run, cancellationToken);
+        await runs.UpdateAsync(run, CancellationToken.None);
         try
         {
             var connection = await runs.ReadConnectionAsync(run, cancellationToken);
@@ -374,6 +505,7 @@ public sealed class BackupCoordinator(
                 await runs.UpdateAsync(run, cancellationToken);
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             bool failed = run.Databases.Any(result => result.Backup != StageStatus.Succeeded
                 || (run.Job.Verify && result.Verification != StageStatus.Succeeded)
                 || result.Copies?.Any(copy => copy.Status != StageStatus.Succeeded) == true
@@ -388,9 +520,10 @@ public sealed class BackupCoordinator(
                     : $"All {run.Type} backup stages completed. Restore has not been tested."
             };
         }
-        catch (OperationCanceledException)
+        catch (Exception exception) when (exception is OperationCanceledException
+            || (exception is not OutOfMemoryException && cancellationToken.IsCancellationRequested))
         {
-            run = MarkInterrupted(run);
+            run = MarkInterrupted(run, stopToken.IsCancellationRequested);
         }
         catch (Exception exception)
         {
@@ -419,7 +552,7 @@ public sealed class BackupCoordinator(
         await runs.UpdateAsync(run, CancellationToken.None);
     }
 
-    private static BackupRun MarkInterrupted(BackupRun run)
+    private static BackupRun MarkInterrupted(BackupRun run, bool stoppedByOperator = false)
     {
         var databases = run.Databases.Select(result => result with
         {
@@ -433,10 +566,12 @@ public sealed class BackupCoordinator(
         }).ToArray();
         return run with
         {
-            Status = RunStatus.Interrupted,
+            Status = stoppedByOperator ? RunStatus.Cancelled : RunStatus.Interrupted,
             CompletedUtc = DateTimeOffset.UtcNow,
             Databases = databases,
-            Message = "Service stopping. Completed stages are retained; uncertain SQL outcomes need manual inspection."
+            Message = stoppedByOperator
+                ? "Stopped by an operator. Completed stages are retained; inspect any uncertain output."
+                : "Service stopping. Completed stages are retained; uncertain SQL outcomes need manual inspection."
         };
     }
 
@@ -454,12 +589,12 @@ public sealed class BackupCoordinator(
         try
         {
             var run = await runs.GetAsync(runId, cancellationToken);
-            if (IsMaintenanceActive || activeJobs.Contains(run.Job.Id) || activeJobs.Count >= 16)
+            if (IsMaintenanceActive || activeJobs.Contains(run.Job.Id) || activeJobs.Count >= MaxActiveJobs)
             {
                 throw new ArgumentException("Maintenance or queued/running work prevents transfer retries. Wait and try again.");
             }
 
-            if (run.Job.Destinations is null || run.Status is not (RunStatus.Failed or RunStatus.Interrupted)
+            if (run.Job.Destinations is null || run.Status is not (RunStatus.Failed or RunStatus.Interrupted or RunStatus.Cancelled)
                 || !run.Databases.Any(result => result.Backup == StageStatus.Succeeded
                     && (!run.Job.Verify || result.Verification == StageStatus.Succeeded)
                     && result.StagingCleanup != StageStatus.Succeeded))
@@ -485,10 +620,10 @@ public sealed class BackupCoordinator(
         }
     }
 
-    private async Task ExecuteTransferRetryAsync(BackupRun queued, CancellationToken cancellationToken)
+    private async Task ExecuteTransferRetryAsync(BackupRun queued, CancellationToken stopToken, CancellationToken cancellationToken)
     {
         var run = queued with { Status = RunStatus.Running, Message = "Retrying destination work only." };
-        await runs.UpdateAsync(run, cancellationToken);
+        await runs.UpdateAsync(run, CancellationToken.None);
         try
         {
             var credentials = await new DestinationSecrets(configurationStore).ReadRunAsync(run.Id, cancellationToken);
@@ -496,6 +631,7 @@ public sealed class BackupCoordinator(
             var transfers = new DestinationTransferService(destinationStorage ?? new DestinationStorage());
             for (int index = 0; index < run.Databases.Length; index++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var result = run.Databases[index];
                 if (result.StagingCleanup == StageStatus.Succeeded)
                 {
@@ -514,6 +650,7 @@ public sealed class BackupCoordinator(
                 await runs.UpdateAsync(run, cancellationToken);
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             bool succeeded = run.Databases.All(result => result.Backup == StageStatus.Succeeded
                 && (!run.Job.Verify || result.Verification == StageStatus.Succeeded)
                 && result.DestinationTransfers?.Count(transfer => transfer.Status == StageStatus.Succeeded) == run.Job.Destinations!.Length
@@ -525,9 +662,10 @@ public sealed class BackupCoordinator(
                 Message = succeeded ? "Destination retry completed. SQL backup was not repeated." : "Some destination work remains incomplete. Inspect each result."
             };
         }
-        catch (OperationCanceledException)
+        catch (Exception exception) when (exception is OperationCanceledException
+            || (exception is not OutOfMemoryException && cancellationToken.IsCancellationRequested))
         {
-            run = MarkInterrupted(run);
+            run = MarkInterrupted(run, stopToken.IsCancellationRequested);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

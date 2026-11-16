@@ -48,6 +48,8 @@
                         </ComboBox>
                         <TextBlock x:Name="LocationLabel" Text="Folder path" />
                         <TextBox x:Name="Location" Padding="7,4" MaxLength="512" Margin="0,4,0,8" />
+                        <CheckBox x:Name="FastCopy" Content="Fast Copy (buffered writes)" Margin="0,0,0,10"
+                                  ToolTip="Use buffered writes during the copy. The file is flushed and SHA-256 verified before it becomes a final backup." />
                         <StackPanel x:Name="CloudFields">
                             <TextBlock Text="Object prefix (optional)" />
                             <TextBox x:Name="Prefix" Padding="7,4" MaxLength="256" Margin="0,4,0,8" />

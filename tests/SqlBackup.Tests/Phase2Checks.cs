@@ -123,7 +123,7 @@ public static class Phase2Checks
             Check(firstRun.Connection.Server == "first-server" && secondRun.Connection.Server == "second-server"
                 && engine.ObservedPassword == "SecondJobSecret",
                 "Queued runs retain their original connection and protected credential snapshot");
-            Check(engine.ExecutionCount == 2, "Queued jobs execute once each under the serial worker");
+            Check(engine.ExecutionCount == 2, "Accepted jobs execute once each");
         }
         finally
         {

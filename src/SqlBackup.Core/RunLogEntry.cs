@@ -8,6 +8,7 @@ public sealed record RunLogEntry(DateTimeOffset? CreatedUtc, string Stage, strin
     {
         "Succeeded" => "✓",
         "Failed" or "Unknown" or "Interrupted" => "!",
+        "Cancelled" => "■",
         "Running" or "Queued" => "…",
         _ => "·"
     };
@@ -15,6 +16,7 @@ public sealed record RunLogEntry(DateTimeOffset? CreatedUtc, string Stage, strin
     {
         "Succeeded" => "#278359",
         "Failed" or "Unknown" or "Interrupted" => "#CE6244",
+        "Cancelled" => "#8A6327",
         _ => "#607D91"
     };
 }

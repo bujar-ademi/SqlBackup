@@ -109,6 +109,7 @@ public sealed class DestinationTransferService(DestinationStorage storage)
                 }
                 catch (Exception exception) when (exception is not OutOfMemoryException)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     transfer = transfer with { Status = StageStatus.Failed, Message = DestinationFailure.Describe(exception) };
                     transfers[index] = transfer;
                     result = result with { DestinationTransfers = transfers.ToArray() };

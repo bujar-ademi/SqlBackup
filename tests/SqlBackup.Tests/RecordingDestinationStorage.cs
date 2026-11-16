@@ -12,6 +12,8 @@ public sealed class RecordingDestinationStorage : IDestinationStorage
     public Dictionary<Guid, string?> ObservedSecrets { get; } = [];
     public HashSet<Guid> FailingDestinations { get; } = [];
     public Dictionary<Guid, int> TransientFailures { get; } = [];
+    public Guid? BlockedDestination { get; set; }
+    public TaskCompletionSource UploadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Task CheckAccessAsync(DestinationCredentialSnapshot access, CancellationToken cancellationToken)
     {
@@ -26,6 +28,12 @@ public sealed class RecordingDestinationStorage : IDestinationStorage
         DestinationSecrets.Validate(access.Destination, access);
         UploadCounts[access.Destination.Id] = UploadCounts.GetValueOrDefault(access.Destination.Id) + 1;
         ObservedSecrets[access.Destination.Id] = DestinationSecrets.Unprotect(access.ProtectedSecret);
+        if (access.Destination.Id == BlockedDestination)
+        {
+            UploadStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        }
+
         if (TransientFailures.GetValueOrDefault(access.Destination.Id) > 0)
         {
             TransientFailures[access.Destination.Id]--;

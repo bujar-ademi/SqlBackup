@@ -11,12 +11,14 @@ public sealed record RunSummary(Guid Id, Guid JobId, string JobName, DateTimeOff
     {
         RunStatus.Succeeded => "✓",
         RunStatus.Failed or RunStatus.Interrupted => "!",
+        RunStatus.Cancelled => "■",
         _ => "…"
     };
     public string StatusColor => Status switch
     {
         RunStatus.Succeeded => "#278359",
         RunStatus.Failed or RunStatus.Interrupted => "#CE6244",
+        RunStatus.Cancelled => "#8A6327",
         _ => "#4689BF"
     };
 }

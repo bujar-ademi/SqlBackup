@@ -127,6 +127,7 @@ public sealed class SqlBackupEngine : ISqlBackupEngine
         }
         catch (SqlException exception)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return result with { Backup = StageStatus.Failed, Verification = StageStatus.Skipped, Message = SqlFailure.Describe(exception) };
         }
         catch (ArgumentException exception)
@@ -171,6 +172,7 @@ public sealed class SqlBackupEngine : ISqlBackupEngine
         }
         catch (SqlException exception)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return result with { Verification = StageStatus.Failed, Message = "Backup completed; VERIFYONLY failed. " + SqlFailure.Describe(exception) };
         }
     }

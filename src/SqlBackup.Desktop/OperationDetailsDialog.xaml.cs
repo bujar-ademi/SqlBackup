@@ -61,7 +61,7 @@ public partial class OperationDetailsDialog : Window
             var response = await sendAsync(request).WaitAsync(lifetime.Token);
             if (response.Runs?.FirstOrDefault() is { } run)
             {
-                ApplyRun(run, response.Log);
+                ApplyRun(run, response.Log, response.StopRequested);
             }
             else
             {
@@ -95,15 +95,20 @@ public partial class OperationDetailsDialog : Window
         }
     }
 
-    private void ApplyRun(BackupRun run, RunLogEntry[]? observed)
+    private void ApplyRun(BackupRun run, RunLogEntry[]? observed, bool stopRequested)
     {
         currentRun = run;
-        RetryButton.Visibility = run.Job.Destinations is not null && run.Status is RunStatus.Failed or RunStatus.Interrupted
+        RetryButton.Visibility = run.Job.Destinations is not null && run.Status is RunStatus.Failed or RunStatus.Interrupted or RunStatus.Cancelled
             ? Visibility.Visible : Visibility.Collapsed;
+        bool isRunning = run.Status == RunStatus.Running;
+        StopButton.Visibility = isRunning ? Visibility.Visible : Visibility.Collapsed;
+        StopButton.IsEnabled = !stopRequested;
+        StopButton.Content = stopRequested ? "Stopping…" : "Stop Job";
+        string status = isRunning && stopRequested ? "Stopping…" : run.Status.ToString();
         Details.Text = RunDetailsFormatter.Format(run);
         JobLogTitle.Text = "Log of " + run.Job.Name;
         var summary = RunPresentation.Summarize(run);
-        JobStatus.Text = summary.StatusSymbol + " " + run.Status;
+        JobStatus.Text = summary.StatusSymbol + " " + status;
         JobStatus.Foreground = (Brush)new BrushConverter().ConvertFromString(summary.StatusColor)!;
         StartTime.Text = run.StartedUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "Not started";
         var duration = run.StartedUtc.HasValue ? (run.CompletedUtc ?? DateTimeOffset.UtcNow) - run.StartedUtc.Value : TimeSpan.Zero;
@@ -112,7 +117,7 @@ public partial class OperationDetailsDialog : Window
         ServerName.Text = run.Connection.Server;
         ObjectCount.Text = $"Backup objects: {run.Databases.Length}";
         BackupObjects.ItemsSource = run.Databases.Select(item => BackupObjectView.Create(run, item)).ToArray();
-        RunState.Text = $"Job {run.Status} · {run.Type}";
+        RunState.Text = $"Job {status} · {run.Type}";
         entries = observed is { Length: > 0 } ? observed : RunLogProjection.FromSnapshot(run);
         EvidenceNote.Text = observed is { Length: > 0 }
             ? "Observed stage transitions · local times · closing this log does not stop the backup"
@@ -139,7 +144,7 @@ public partial class OperationDetailsDialog : Window
         IEnumerable<RunLogEntry> filtered = entries;
         if (LogFilter.SelectedIndex == 1)
         {
-            filtered = entries.Where(item => item.Status is "Failed" or "Unknown" or "Interrupted");
+            filtered = entries.Where(item => item.Status is "Failed" or "Unknown" or "Interrupted" or "Cancelled");
         }
         else if (LogFilter.SelectedIndex == 2)
         {
@@ -147,6 +152,41 @@ public partial class OperationDetailsDialog : Window
         }
 
         LogRecords.ItemsSource = filtered.ToArray();
+    }
+
+    private async void Stop_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || currentRun is not { Status: RunStatus.Running } run)
+        {
+            return;
+        }
+
+        busy = true;
+        StopButton.IsEnabled = false;
+        try
+        {
+            var response = await sendAsync(new ServiceRequest("StopJob", RunId: run.Id));
+            if (response.Success)
+            {
+                StopButton.Content = "Stopping…";
+                JobStatus.Text = "… Stopping…";
+                RunState.Text = $"Job Stopping… · {run.Type}";
+            }
+            else
+            {
+                EvidenceNote.Text = response.Message;
+                StopButton.IsEnabled = true;
+            }
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            EvidenceNote.Text = "The stop request could not be confirmed. Refresh the job log.";
+            StopButton.IsEnabled = true;
+        }
+        finally
+        {
+            busy = false;
+        }
     }
 
     private async void Retry_Click(object sender, RoutedEventArgs e)

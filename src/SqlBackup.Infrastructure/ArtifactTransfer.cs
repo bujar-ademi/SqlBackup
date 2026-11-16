@@ -168,6 +168,7 @@ public sealed class ArtifactTransfer
         }
 
         ArtifactFiles.EnsureNoLinks(destination);
+        cancellationToken.ThrowIfCancellationRequested();
         File.Move(partial, destination, overwrite: false);
         return new ArtifactCopy(folder, destination, StageStatus.Succeeded,
             "Copy completed and SHA-256 matched the source.", copiedHash);

@@ -68,6 +68,11 @@ public static class DestinationValidation
             throw new ArgumentException("Enter a supported user name or access key ID.");
         }
 
+        if (destination.FastCopy && destination.Kind != DestinationKind.Folder)
+        {
+            throw new ArgumentException("Fast Copy is available only for folder destinations.");
+        }
+
         switch (destination.Kind)
         {
             case DestinationKind.Folder:

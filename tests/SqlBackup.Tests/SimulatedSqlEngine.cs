@@ -5,6 +5,8 @@ namespace SqlBackup.Tests;
 
 public sealed class SimulatedSqlEngine : ISqlBackupEngine
 {
+    private int executionCount;
+
     public bool DirectDestinationAvailable { get; set; }
     public Exception? DirectDestinationFailure { get; set; }
 
@@ -26,7 +28,7 @@ public sealed class SimulatedSqlEngine : ISqlBackupEngine
     public bool FailBackup { get; set; }
     public bool WriteArtifact { get; set; }
     public bool SupportsCompression { get; set; } = true;
-    public int ExecutionCount { get; private set; }
+    public int ExecutionCount => Volatile.Read(ref executionCount);
     public int PreflightFailures { get; set; }
     public string RecoveryModel { get; set; } = "SIMPLE";
     public List<BackupType> ExecutedTypes { get; } = [];
@@ -57,8 +59,11 @@ public sealed class SimulatedSqlEngine : ISqlBackupEngine
         CancellationToken cancellationToken,
         BackupType type = BackupType.Full)
     {
-        ExecutionCount++;
-        ExecutedTypes.Add(type);
+        Interlocked.Increment(ref executionCount);
+        lock (ExecutedTypes)
+        {
+            ExecutedTypes.Add(type);
+        }
         ObservedPassword = ConnectionSecrets.UnprotectPassword(connection);
         var result = new DatabaseBackupResult(database, StageStatus.Running, StageStatus.Pending, artifactPath);
         await reportAsync(result);

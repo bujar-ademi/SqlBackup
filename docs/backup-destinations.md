@@ -22,6 +22,8 @@ Cloud keys include the configured prefix, job ID, run ID and artifact filename. 
 
 An existing object encountered during retry is read and SHA-256 checked before it is accepted. Folder copies use exclusive partial files, SHA-256 checks and no-overwrite promotion. Destination receipts distinguish status, attempt count, size, SHA-256, object path and cloud ETag/version. Provider exceptions are converted to redacted actionable messages.
 
+**Fast Copy** is a per-folder option, useful for large copies to a NAS. It uses buffered writes and 1 MiB copy blocks, then flushes the temporary file to storage before verifying SHA-256 and promoting it. The standard write-through mode is the default for existing and new folders. Cleanup still reconfirms the destination before removing staging. Direct SQL output and cloud uploads use their existing paths. Actual throughput depends on the share, network and storage.
+
 Transient transfers have at most three application attempts; SDKs also have bounded transport retries. Other destinations continue after an individual failure. A run is successful only when all required destinations and requested verification succeed. Retry destinations in the job log queues destination work from the retained source and original credential snapshots. It skips completed destinations and never repeats SQL backup or SQL verification. A changed or missing source fails safely. Service restart marks unfinished destination work Unknown rather than claiming completion or automatically replaying it.
 
 ## Reviewed retention

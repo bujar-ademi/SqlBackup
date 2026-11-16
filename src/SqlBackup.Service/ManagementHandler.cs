@@ -64,6 +64,9 @@ public sealed class ManagementHandler(
                 case "DeleteJob" when request.Job is not null:
                     await jobs.DeleteAsync(request.Job, cancellationToken);
                     return new ServiceResponse(true, "Job configuration removed. Backup files and run history are retained.", Jobs: await jobs.ListAsync(cancellationToken));
+                case "StopJob" when request.RunId.HasValue:
+                    coordinator.RequestStop(request.RunId.Value);
+                    return new ServiceResponse(true, "Stop requested. Waiting for the active operation to stop.");
                 case "RetryDestinations" when request.RunId.HasValue:
                     Guid retryId = await coordinator.RetryDestinationsAsync(request.RunId.Value, cancellationToken);
                     return new ServiceResponse(true, "Destination-only retry queued. SQL backup will not be repeated.", RunId: retryId);
@@ -89,7 +92,8 @@ public sealed class ManagementHandler(
                 case "RunDetails" when history is not null && request.RunId.HasValue:
                     return new ServiceResponse(true, "Run details loaded.",
                         Runs: [await history.GetAsync(request.RunId.Value, cancellationToken)],
-                        Log: await history.ReadLogAsync(request.RunId.Value, cancellationToken));
+                        Log: await history.ReadLogAsync(request.RunId.Value, cancellationToken),
+                        StopRequested: coordinator.IsStopRequested(request.RunId.Value));
                 case "Notifications" when notifications is not null:
                     return new ServiceResponse(true, "Local notifications loaded.",
                         Notifications: await notifications.ListAsync(cancellationToken));

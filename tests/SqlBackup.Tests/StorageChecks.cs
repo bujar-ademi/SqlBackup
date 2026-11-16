@@ -114,7 +114,7 @@ public static class StorageChecks
                 "Integrity mismatch leaves only partial output, never a completed copy");
         }
 
-        await ExecutionGate.Instance.WaitAsync();
+        await ExecutionGate.EnterBackupAsync(CancellationToken.None);
         try
         {
             await ExpectAsync(() => retention.PreviewAsync(job.Id, CancellationToken.None),
@@ -122,7 +122,7 @@ public static class StorageChecks
         }
         finally
         {
-            ExecutionGate.Instance.Release();
+            ExecutionGate.ExitBackup();
         }
 
         string badFolder = Path.Combine(directory, "unavailable", "share");

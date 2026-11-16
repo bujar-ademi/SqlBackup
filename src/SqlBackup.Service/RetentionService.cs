@@ -17,7 +17,7 @@ public sealed class RetentionService(JobStore jobs, RunStore runs, CleanupAuditS
 
     public async Task<CleanupPreview> PreviewAsync(Guid jobId, CancellationToken cancellationToken)
     {
-        if (!await ExecutionGate.Instance.WaitAsync(0, cancellationToken))
+        if (!ExecutionGate.TryEnterCleanup(cancellationToken))
         {
             throw new ArgumentException("A backup or copy is active. Try cleanup preview after it finishes.");
         }
@@ -28,13 +28,13 @@ public sealed class RetentionService(JobStore jobs, RunStore runs, CleanupAuditS
         }
         finally
         {
-            ExecutionGate.Instance.Release();
+            ExecutionGate.ExitCleanup();
         }
     }
 
     public async Task<CleanupAudit[]> ExecuteAsync(Guid jobId, string token, CancellationToken cancellationToken)
     {
-        if (!await ExecutionGate.Instance.WaitAsync(0, cancellationToken))
+        if (!ExecutionGate.TryEnterCleanup(cancellationToken))
         {
             throw new ArgumentException("A backup or copy is active. Refresh the preview after it finishes.");
         }
@@ -107,7 +107,7 @@ public sealed class RetentionService(JobStore jobs, RunStore runs, CleanupAuditS
         }
         finally
         {
-            ExecutionGate.Instance.Release();
+            ExecutionGate.ExitCleanup();
         }
     }
 

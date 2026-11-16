@@ -15,4 +15,5 @@ public sealed record ServiceResponse(
     NotificationPage? Notifications = null,
     DiagnosticItem[]? Diagnostics = null,
     string? ErrorCode = null,
-    RunLogEntry[]? Log = null);
+    RunLogEntry[]? Log = null,
+    bool StopRequested = false);

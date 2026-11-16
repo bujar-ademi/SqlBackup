@@ -22,7 +22,7 @@ public sealed class JobListItem(BackupJob job) : INotifyPropertyChanged
         {
             RunStatus.Succeeded => "#61C69B",
             RunStatus.Failed => "#FF9696",
-            RunStatus.Interrupted => "#F0C477",
+            RunStatus.Interrupted or RunStatus.Cancelled => "#F0C477",
             RunStatus.Queued or RunStatus.Running => "#90C7FF",
             _ => "#9AAEC1"
         };

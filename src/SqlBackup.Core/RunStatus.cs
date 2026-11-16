@@ -6,5 +6,6 @@ public enum RunStatus
     Running,
     Succeeded,
     Failed,
-    Interrupted
+    Interrupted,
+    Cancelled
 }

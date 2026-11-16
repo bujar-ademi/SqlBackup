@@ -88,6 +88,7 @@ using (var invalidFrame = new MemoryStream(BitConverter.GetBytes(Protocol.Maximu
 }
 
 await Phase2Checks.RunAsync();
+await BackupExecutionChecks.RunAsync();
 await ScheduleChecks.RunAsync();
 await StorageChecks.RunAsync();
 await AutomaticStorageChecks.RunAsync();

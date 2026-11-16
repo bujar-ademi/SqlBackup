@@ -18,6 +18,7 @@ public static class DestinationChecks
         await CheckSegmentStreamAsync();
         await CheckRunAsync(false);
         await CheckRunAsync(true);
+        await CheckCancelledTransferAsync();
         await CheckRetentionAsync();
         await CheckMixedHistoryAsync();
     }
@@ -27,6 +28,8 @@ public static class DestinationChecks
         var azure = AzureDestination();
         DestinationValidation.Validate(azure);
         DestinationValidation.Validate(S3Destination());
+        Reject(() => DestinationValidation.Validate(azure with { FastCopy = true }),
+            "Fast Copy is restricted to folder destinations");
         Reject(() => DestinationValidation.Validate(azure with { Location = azure.Location + "?sig=FictionalSecret" }),
             "SAS tokens cannot enter ordinary destination metadata");
         Reject(() => DestinationValidation.Validate(azure with { Location = "https://untrusted.example/container" }),
@@ -55,6 +58,45 @@ public static class DestinationChecks
         Check(source.CanRead, "Disposing a multipart segment preserves the source for later destinations");
     }
 
+    private static async Task CheckCancelledTransferAsync()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var token = timeout.Token;
+        string directory = NewDirectory();
+        string staging = Directory.CreateDirectory(Path.Combine(directory, "staging")).FullName;
+        var configuration = new ConfigurationStore(Path.Combine(directory, "state"));
+        await configuration.InitializeAsync(token);
+        var jobs = new JobStore(configuration);
+        var runs = new RunStore(configuration);
+        var azure = AzureDestination();
+        var job = new BackupJob(Guid.NewGuid(), "Cancelled transfer", ["TestDatabase"], string.Empty,
+            Verify: true, Connection: new ConnectionConfiguration("Fixture", "fictional-server", true, null),
+            TemporaryFolder: staging, Destinations: [azure]);
+        await jobs.SaveAsync(job, token, destinationPasswords: [new DestinationPassword(azure.Id, "FictionalAzureSas")]);
+
+        var storage = new RecordingDestinationStorage { BlockedDestination = azure.Id };
+        var engine = new SimulatedSqlEngine { WriteArtifact = true };
+        using var coordinator = new BackupCoordinator(configuration, jobs, runs, new ConnectionSecrets(configuration),
+            engine, NullLogger<BackupCoordinator>.Instance, new DestinationStorage(_ => storage));
+        await coordinator.StartAsync(token);
+        try
+        {
+            Guid runId = await coordinator.EnqueueAsync(job.Id, token);
+            await storage.UploadStarted.Task.WaitAsync(token);
+            coordinator.RequestStop(runId);
+            var cancelled = await WaitAsync(runs, runId);
+            var result = cancelled.Databases.Single();
+            Check(cancelled.Status == RunStatus.Cancelled && result.Backup == StageStatus.Succeeded
+                && result.Verification == StageStatus.Succeeded && result.DestinationTransfers?.Single().Status == StageStatus.Unknown
+                && File.Exists(result.ArtifactPath),
+                "Cancelling a transfer preserves completed SQL work and staging while marking the transfer uncertain");
+        }
+        finally
+        {
+            await coordinator.StopAsync(CancellationToken.None);
+        }
+    }
+
     private static async Task CheckRunAsync(bool cloudOnly)
     {
         string directory = NewDirectory();
@@ -71,7 +113,7 @@ public static class DestinationChecks
         if (!cloudOnly)
         {
             destinations = [new BackupDestination(Guid.NewGuid(), "Local", DestinationKind.Folder, final),
-                new BackupDestination(Guid.NewGuid(), "Second local", DestinationKind.Folder, second), azure, s3];
+                new BackupDestination(Guid.NewGuid(), "Second local", DestinationKind.Folder, second, FastCopy: true), azure, s3];
         }
 
         var job = new BackupJob(Guid.NewGuid(), "Destination fixture", ["TestDatabase"], string.Empty,
@@ -137,6 +179,10 @@ public static class DestinationChecks
                     && !Directory.EnumerateFiles(staging).Any() && File.Exists(result.ArtifactPath)
                     && Directory.EnumerateFiles(second).Count() == 1 && result.DestinationTransfers?.Length == 4,
                     "A suitable local destination becomes the direct SQL output and feeds every other destination");
+                var fastCopy = result.DestinationTransfers!.Single(item => item.DestinationId == destinations[1].Id);
+                Check(run.Job.Destinations![1].FastCopy && fastCopy.Status == StageStatus.Succeeded
+                    && fastCopy.Sha256 == result.Sha256 && File.Exists(fastCopy.Path),
+                    "Fast Copy survives the job and run snapshots and produces a verified final file");
             }
         }
         finally

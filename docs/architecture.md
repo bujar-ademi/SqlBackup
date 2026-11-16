@@ -6,7 +6,7 @@ SqlBackup consists of a WPF desktop, a Windows background service and a setup he
 
 - Core defines contracts, path and configuration validation, scheduling and IPC client behavior.
 - Infrastructure implements SQLite storage, DPAPI secrets, SQL operations, verified transfers and retention planning.
-- Service hosts management requests, persisted scheduling and the bounded serial execution queue.
+- Service hosts management requests, persisted scheduling and the bounded execution queue.
 - Desktop provides job configuration, inspection, history, diagnostics and local notifications.
 - Setup manages the owned Windows service, maintenance, upgrades, recovery snapshots and uninstall.
 - Tests is an executable verification suite with optional isolated SQL and installer checks.
@@ -19,7 +19,9 @@ The host holds an exclusive data-directory lock. SQLite records job revisions, s
 
 ## Execution
 
-Scheduling and desktop previews share the same calculator. Persisted occurrence keys prevent duplicate enqueueing. The service serializes work and uses SQL application locks for per-database coordination. Closing the desktop does not cancel backups. Interrupted runs remain visible and SQL backup commands are not blindly retried.
+Scheduling and desktop previews share the same calculator. Persisted occurrence keys prevent duplicate enqueueing. Up to three runs can execute concurrently, including destination-only retries. Each job can have one queued or active run, with a total capacity of 16. Backup runs targeting overlapping databases on the same configured SQL server wait for earlier conflicting runs. SQL session application locks also protect concurrent SQL work through aliases or other cooperating hosts. Cleanup preview and execution require exclusive access.
+
+Stop Job requests cancellation of the selected active run. The service passes cancellation to the current operation and frees its slot when execution exits. Operator cancellations are recorded as Cancelled, with completed stages retained and in-flight stages recorded as Unknown. Closing the desktop leaves work running. Service interruptions remain visible without automatic SQL backup retries.
 
 SQL writes to its configured temporary folder under the SQL service identity. AbaSqlBackup reads that file, verifies transfers through partial files and no-overwrite promotion, and persists final-copy evidence before temporary cleanup. Storage roles can use independent UNC credentials. See [staging and NAS](staging-and-nas.md).
 
