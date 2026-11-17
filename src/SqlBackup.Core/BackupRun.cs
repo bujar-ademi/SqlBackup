@@ -17,4 +17,5 @@ public sealed record BackupRun(
     string? SqlOutputFolder = null,
     string? ServiceOutputFolder = null,
     Guid? DirectDestinationId = null,
-    bool IsTransferRetry = false);
+    bool IsTransferRetry = false,
+    bool UseReadableFileNames = false);

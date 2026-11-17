@@ -51,7 +51,7 @@ public sealed class RetentionEvidenceReader(ConnectionSecrets secrets, IBackupHi
                     continue;
                 }
 
-                string expectedSqlPath = BackupSql.CreateArtifactPath(run.Job, result.Database, run.Id, run.CreatedUtc, run.Type);
+                string expectedSqlPath = BackupArtifactPaths.SqlPath(run, result.Database);
                 if (!string.Equals(expectedSqlPath, result.ArtifactPath, StringComparison.OrdinalIgnoreCase))
                 {
                     uncertain = true;

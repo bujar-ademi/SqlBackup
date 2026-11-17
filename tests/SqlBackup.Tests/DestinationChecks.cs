@@ -143,6 +143,10 @@ public static class DestinationChecks
             Guid runId = await coordinator.EnqueueAsync(job.Id, CancellationToken.None);
             var run = await WaitAsync(runs, runId);
             var result = run.Databases.Single();
+            string readableName = $"TestDatabase_Full_{run.CreatedUtc.UtcDateTime:yyyy-MM-dd_HH-mm-ss-fffffff}Z.bak";
+            Check(run.UseReadableFileNames && Path.GetFileName(result.ArtifactPath) == readableName
+                && result.DestinationTransfers?.All(transfer => Path.GetFileName(transfer.Path) == readableName) == true,
+                "Destination runs use the same readable name for SQL output and every destination");
             Check(engine.ExecutionCount == 1 && run.Job.Destinations?.Length == destinations.Length,
                 "Multiple destinations share exactly one SQL backup and immutable execution configuration");
             Check(result.DestinationTransfers?.Single(item => item.DestinationId == azure.Id).Status == StageStatus.Succeeded

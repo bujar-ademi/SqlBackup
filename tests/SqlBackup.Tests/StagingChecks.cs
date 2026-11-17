@@ -72,6 +72,11 @@ public static class StagingChecks
         Check(legacyPath.Contains(id.ToString("N")) && Path.GetDirectoryName(legacyPath) == job.Destination
             && JsonSerializer.Deserialize<BackupJob>(JsonSerializer.Serialize(legacy))?.TemporaryFolder is null,
             "Historical snapshots retain their original path/name derivation for retention evidence");
+        var historical = new BackupRun(id, legacy, legacy.Connection!, timestamp, RunStatus.Succeeded, [], "Fixture");
+        var current = historical with { UseReadableFileNames = true };
+        Check(BackupArtifactPaths.SqlPath(historical, "TestDatabase") == legacyPath
+            && BackupArtifactPaths.SqlPath(current, "TestDatabase") == Path.Combine(job.Destination, Path.GetFileName(path)),
+            "Ownership checks can reconstruct both historical and new direct-write names");
         Check(BackupSql.CreateArtifactPath(job, "TestDatabase", id, timestamp, BackupType.Log).EndsWith(".trn"),
             "Log backups retain their distinct TRN extension");
         try

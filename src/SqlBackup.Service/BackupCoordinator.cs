@@ -23,6 +23,7 @@ public sealed class BackupCoordinator(
     private readonly object executionLock = new();
     private readonly Dictionary<Guid, ActiveBackupExecution> executingRuns = [];
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private DateTimeOffset lastRunCreatedUtc;
 
     public bool IsMaintenanceActive => File.Exists(Path.Combine(configurationStore.DirectoryPath, "setup-maintenance.json"));
 
@@ -176,7 +177,14 @@ public sealed class BackupCoordinator(
                 storageAccess = storageAccess with { Source = null };
             }
 
-            var run = new BackupRun(Guid.NewGuid(), job, connection.Configuration, DateTimeOffset.UtcNow,
+            // Windows can return the same timestamp on consecutive reads.
+            var createdUtc = DateTimeOffset.UtcNow;
+            if (createdUtc <= lastRunCreatedUtc)
+            {
+                createdUtc = lastRunCreatedUtc.AddTicks(1);
+            }
+
+            var run = new BackupRun(Guid.NewGuid(), job, connection.Configuration, createdUtc,
                 RunStatus.Queued,
                 job.Databases.Select(database => new DatabaseBackupResult(database,
                     StageStatus.Pending, job.Verify ? StageStatus.Pending : StageStatus.Skipped)).ToArray(),
@@ -184,7 +192,7 @@ public sealed class BackupCoordinator(
                     ? $"Queued for {type} backup. SQL Server will write directly to the local final folder; staging is unnecessary."
                     : $"Queued for {type} backup.", Type: type, ScheduledForUtc: scheduledForUtc, OccurrenceKey: occurrenceKey,
                 SqlOutputFolder: destinationPlan?.SqlFolder, ServiceOutputFolder: destinationPlan?.ServiceFolder,
-                DirectDestinationId: destinationPlan?.DirectDestinationId);
+                DirectDestinationId: destinationPlan?.DirectDestinationId, UseReadableFileNames: true);
 
             if (activeJobs.Count >= MaxActiveJobs)
             {
@@ -192,6 +200,7 @@ public sealed class BackupCoordinator(
             }
 
             await runs.AddAsync(run, connection.ProtectedPassword, cancellationToken, storageAccess, destinationAccess);
+            lastRunCreatedUtc = createdUtc;
             activeJobs.Add(jobId);
             if (!queue.Writer.TryWrite(run))
             {

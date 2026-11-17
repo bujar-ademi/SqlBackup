@@ -6,7 +6,8 @@ namespace SqlBackup.Infrastructure;
 
 public static class BackupSql
 {
-    public static string CreateArtifactPath(BackupJob job, string database, Guid runId, DateTimeOffset timestamp, BackupType type = BackupType.Full)
+    public static string CreateArtifactPath(BackupJob job, string database, Guid runId, DateTimeOffset timestamp,
+        BackupType type = BackupType.Full, bool useReadableFileNames = false)
     {
         JobValidation.Validate(job);
         string safeName = SafeName(database);
@@ -17,8 +18,8 @@ public static class BackupSql
         }
 
         string extension = type == BackupType.Log ? "trn" : "bak";
-        // Null denotes the historical format, retained for immutable run/retention evidence.
-        string fileName = job.TemporaryFolder is null
+        // Reconstruct historical direct-write paths for retention.
+        string fileName = job.TemporaryFolder is null && !useReadableFileNames
             ? $"{safeName}_{type}_{timestamp:yyyyMMddTHHmmssfffZ}_{runId:N}_{databaseIndex}.{extension}"
             : ReadableFileName(job, databaseIndex, timestamp, type, extension);
 

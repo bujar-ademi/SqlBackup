@@ -18,6 +18,6 @@ public static class BackupArtifactPaths
             };
         }
 
-        return BackupSql.CreateArtifactPath(outputJob, database, run.Id, run.CreatedUtc, run.Type);
+        return BackupSql.CreateArtifactPath(outputJob, database, run.Id, run.CreatedUtc, run.Type, run.UseReadableFileNames);
     }
 }

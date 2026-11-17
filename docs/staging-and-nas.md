@@ -36,9 +36,9 @@ Final backups continue to use reviewed dependency-aware retention. Staging clean
 
 ## Filenames and upgrade compatibility
 
-New staging jobs use names such as `ExampleDatabase_Full_2026-10-20_18-14-25-1234567Z.bak`. Log files use `.trn`. Times are UTC, fractional seconds distinguish close executions, and `_02`, `_03`, etc. disambiguate database names that collide after sanitization/truncation/case folding. Run GUIDs remain internal identifiers. Any existing physical SQL/final path is rejected; it is never appended to or overwritten.
+New backup runs use names such as `ExampleDatabase_Full_2026-10-20_18-14-25-1234567Z.bak` for direct and staged output. Log files use `.trn`. Times are UTC, fractional seconds distinguish close executions, and `_02`, `_03`, etc. disambiguate database names that collide after sanitization, truncation or case folding. Run GUIDs remain internal identifiers. An existing file with different content blocks the write.
 
-Schema 8 does not rewrite saved jobs or historical run snapshots. Null TemporaryFolder selects direct-write mode and preserves its established path/name format. Staging-enabled jobs may automatically use direct output per run when the checks above pass; historical run snapshots remain unchanged. To convert an existing job, open Store backups, choose its temporary folder and optional source mapping, then Save & Close and Save Job. Existing final/secondary folders keep their meaning. This explicit conversion avoids silently enabling an unavailable drive on a remote server; previously created filenames/retention evidence remain valid.
+The naming rule is saved with each new run. Historical runs use their original naming rules for retries and retention. For older jobs, null TemporaryFolder selects direct-write mode. Staging-enabled jobs may automatically use direct output per run when the checks above pass. To configure staging for an older job, open Store backups, choose its temporary folder and optional source mapping, then Save & Close and Save Job.
 
 
 
