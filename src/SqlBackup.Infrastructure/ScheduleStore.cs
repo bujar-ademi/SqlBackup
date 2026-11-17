@@ -30,7 +30,8 @@ public sealed class ScheduleStore(ConfigurationStore store)
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO ScheduleState (JobId, JobRevision, CheckedUtc, Message) VALUES ($id, $revision, $checked, $message)
-            ON CONFLICT(JobId) DO UPDATE SET JobRevision = excluded.JobRevision, CheckedUtc = excluded.CheckedUtc, Message = excluded.Message;
+            ON CONFLICT(JobId) DO UPDATE SET JobRevision = excluded.JobRevision, CheckedUtc = excluded.CheckedUtc, Message = excluded.Message
+            WHERE excluded.JobRevision >= ScheduleState.JobRevision;
             """;
         command.Parameters.AddWithValue("$id", status.JobId.ToString());
         command.Parameters.AddWithValue("$revision", status.JobRevision);

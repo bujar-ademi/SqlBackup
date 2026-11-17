@@ -110,6 +110,18 @@ public sealed class JobStore(ConfigurationStore store)
         command.Parameters.AddWithValue("$id", job.Id.ToString());
         command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(destinationAccess));
         await command.ExecuteNonQueryAsync(cancellationToken);
+        command.CommandText = """
+            INSERT INTO ScheduleState (JobId, JobRevision, CheckedUtc, Message)
+            VALUES ($id, $revision, $checked, $message)
+            ON CONFLICT(JobId) DO UPDATE SET JobRevision = excluded.JobRevision,
+                CheckedUtc = excluded.CheckedUtc, Message = excluded.Message;
+            """;
+        command.Parameters.Clear();
+        command.Parameters.AddWithValue("$id", job.Id.ToString());
+        command.Parameters.AddWithValue("$revision", saved.Revision);
+        command.Parameters.AddWithValue("$checked", DateTimeOffset.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue("$message", "Job saved; waiting for the next scheduled occurrence.");
+        await command.ExecuteNonQueryAsync(cancellationToken);
         transaction.Commit();
     }
 

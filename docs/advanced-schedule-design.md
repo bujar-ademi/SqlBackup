@@ -13,7 +13,7 @@ The main workspace shows the next estimated execution and time zone. The gear op
 - At identical instants Full wins over Differential, which wins over Log. The estimated preview uses the same calculator and suppresses lower-priority collisions.
 - The service checks every five seconds. With catch-up enabled, missed work coalesces into one latest eligible occurrence of the highest-priority missed type (Full before Differential before Log), not one execution per missed interval.
 - With catch-up disabled, occurrences older than a 90-second polling/startup grace are skipped. Active-job deferrals are reconsidered on the next tick under that same policy.
-- Schedule cursors and occurrence keys are durable. A revision change reinitializes scheduling for that revision; with catch-up enabled this may create one recovery-base catch-up. Queued snapshots retain their old revision/configuration. The preview is an estimate, not a promise of available capacity or SQL success.
+- Schedule cursors and occurrence keys are durable. Saving a job atomically starts its schedule cursor at the save time. The next eligible occurrence after saving can run. Run missed backups coalesces downtime after that cursor. Queued snapshots retain their saved revision and configuration. The preview is an estimate of available occurrences.
 - Preview search is bounded to five years. An incompatible set of filters can yield no next occurrence.
 
 ## Execution and safety

@@ -78,6 +78,7 @@ public static class ScheduleChecks
         {
             var worker = new ScheduleWorker(configuration, jobs, states, coordinator, NullLogger<ScheduleWorker>.Instance);
             var now = new DateTimeOffset(2026, 1, 5, 12, 0, 0, TimeSpan.Zero);
+            await states.WriteAsync(new ScheduleStatus(job.Id, job.Revision, now.AddDays(-1), "Downtime fixture"), CancellationToken.None);
             await worker.TickAsync(now, CancellationToken.None);
             var run = await WaitAsync(runs);
             Check(run.Type == BackupType.Full && !run.Job.CopyOnly && run.ScheduledForUtc.HasValue
@@ -93,6 +94,18 @@ public static class ScheduleChecks
             await WaitAsync(runs);
             Check((await runs.ListAsync(CancellationToken.None)).Any(item => item.Type == BackupType.Log),
                 "Later Log occurrences are queued by the same service without a desktop process");
+            await jobs.SaveAsync(job with { Name = "Edited scheduled fixture" }, CancellationToken.None);
+            var saved = await jobs.GetAsync(job.Id, CancellationToken.None);
+            var savedState = await states.ReadAsync(job.Id, CancellationToken.None);
+            Check(savedState?.JobRevision == saved.Revision && savedState.CheckedUtc > now,
+                "Saving a job atomically establishes a new schedule cursor");
+            await states.WriteAsync(new ScheduleStatus(job.Id, job.Revision, now, "Stale tick"), CancellationToken.None);
+            Check((await states.ReadAsync(job.Id, CancellationToken.None))?.JobRevision == saved.Revision,
+                "A stale scheduler tick cannot overwrite the cursor of a saved job");
+            int runCount = (await runs.ListAsync(CancellationToken.None, all: true)).Length;
+            await worker.TickAsync(savedState!.CheckedUtc.AddSeconds(5), CancellationToken.None);
+            Check((await runs.ListAsync(CancellationToken.None, all: true)).Length == runCount,
+                "Saving a job with catch-up enabled does not replay historical Full backups");
         }
         finally
         {

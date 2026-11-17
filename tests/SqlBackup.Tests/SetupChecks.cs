@@ -73,9 +73,10 @@ public static class SetupChecks
             }
 
             var schedules = new ScheduleStore(configuration);
+            var beforeMaintenanceTick = await schedules.ReadAsync(job.Id, timeout.Token);
             await new ScheduleWorker(configuration, jobs, schedules, coordinator, NullLogger<ScheduleWorker>.Instance)
                 .TickAsync(DateTimeOffset.UtcNow, timeout.Token);
-            Check(await schedules.ReadAsync(job.Id, timeout.Token) is null,
+            Check(await schedules.ReadAsync(job.Id, timeout.Token) == beforeMaintenanceTick,
                 "Maintenance does not advance schedule cursors or consume missed occurrences");
             Check((await handler.HandleAsync(new ServiceRequest("SetupReadiness"), timeout.Token)).Success,
                 "Setup readiness validates storage and credentials without SQL/NAS access");
